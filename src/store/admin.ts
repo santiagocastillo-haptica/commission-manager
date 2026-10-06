@@ -1,4 +1,4 @@
-import { getApps, initializeApp } from "firebase-admin/app";
+import { type App, getApps, initializeApp } from "firebase-admin/app";
 import { type Firestore, getFirestore } from "firebase-admin/firestore";
 
 /**
@@ -11,11 +11,15 @@ const DEFAULT_PROJECT = "haptica-commission-manager";
 
 const globalForFs = globalThis as unknown as { __hcmFirestore?: Firestore };
 
+/** App de Firebase Admin (compartida por Firestore y Authentication). */
+export function adminApp(): App {
+  const projectId = process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT ?? process.env.FIREBASE_PROJECT_ID ?? DEFAULT_PROJECT;
+  return getApps()[0] ?? initializeApp({ projectId });
+}
+
 export function db(): Firestore {
   if (globalForFs.__hcmFirestore) return globalForFs.__hcmFirestore;
-  const projectId = process.env.GCLOUD_PROJECT ?? process.env.GOOGLE_CLOUD_PROJECT ?? process.env.FIREBASE_PROJECT_ID ?? DEFAULT_PROJECT;
-  const app = getApps()[0] ?? initializeApp({ projectId });
-  const firestore = getFirestore(app);
+  const firestore = getFirestore(adminApp());
   // Los campos `undefined` se omiten en lugar de fallar.
   firestore.settings({ ignoreUndefinedProperties: true });
   globalForFs.__hcmFirestore = firestore;

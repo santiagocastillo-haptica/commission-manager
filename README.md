@@ -13,7 +13,7 @@ Aplicación web interna para **administrar, calcular, liquidar y auditar las com
 
 | Módulo | Estado |
 |---|---|
-| Autenticación (1 administrador) | Listo |
+| Autenticación: ingreso con Google (correos registrados) y contraseña de respaldo | Listo |
 | Dashboard: ventas, meta, facturación, recaudo y comisiones (potencial / generada / pendiente / liquidada) | Listo |
 | Proyectos: alta, edición, anulación, asignación de % con historial, elegibilidad con motivo | Listo |
 | Facturas y recaudos: parciales, multimoneda con TRM, anulación, ajustes | Listo |
@@ -41,7 +41,7 @@ npm run dev                 # http://localhost:3000
 
 Con los datos de demostración la liquidación de abril 2026 ya está aprobada (con pagos) y la de octubre 2026 queda abierta para recorrer el asistente.
 
-Para **producción** no uses el seed (solo funciona contra el emulador): usa `npm run bootstrap` o la página de configuración inicial. Ver [docs/05-migracion-firestore.md](docs/05-migracion-firestore.md) y [docs/04-despliegue.md](docs/04-despliegue.md).
+Para **producción** no uses el seed (solo funciona contra el emulador): el administrador se crea al ingresar por primera vez con Google la cuenta de `BOOTSTRAP_ADMIN_EMAIL`. Ver [docs/05-migracion-firestore.md](docs/05-migracion-firestore.md) y [docs/04-despliegue.md](docs/04-despliegue.md).
 
 ### Variables de entorno (`.env`)
 
@@ -51,6 +51,8 @@ Para **producción** no uses el seed (solo funciona contra el emulador): usa `np
 | `ADMIN_EMAIL`, `ADMIN_NAME`, `ADMIN_PASSWORD` | Administrador que crean `seed` y `bootstrap` (contraseña de 12+ caracteres) |
 | `FIRESTORE_EMULATOR_HOST` | `127.0.0.1:8085` en desarrollo. **No se define en producción** (se usa Firestore real con la cuenta de servicio del entorno) |
 | `GCLOUD_PROJECT` | `haptica-commission-manager` |
+| `NEXT_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID` | Opcionales en desarrollo: activan el botón «Ingresar con Google» (valores públicos de la app web de Firebase) |
+| `BOOTSTRAP_ADMIN_EMAIL` | Cuenta de Google que se crea como administrador en su primer ingreso |
 
 ## Comandos
 

@@ -8,7 +8,7 @@ La aplicación corre en **Firebase App Hosting** (Next.js sobre Cloud Run) y gua
 |---|---|---|
 | Aplicación | Firebase App Hosting | Proyecto `haptica-commission-manager`, región **us-east4** (São Paulo no está disponible; es la más cercana a Colombia), configurada en `apphosting.yaml` |
 | Datos | Cloud Firestore | Base `(default)`, edición Standard, **us-east4** (la ubicación es permanente), recuperación a un punto en el tiempo (7 días) y protección contra eliminación activas |
-| Secretos | Secret Manager | `session-secret` y `setup-token` (ya creados) |
+| Secretos | Secret Manager | `session-secret` (el secreto `setup-token` ya no se usa y puede eliminarse) |
 | Reglas | `firestore.rules` | Niegan todo acceso de clientes; solo el servidor (SDK Admin) lee y escribe. Ya desplegadas |
 
 ## Estado actual
@@ -16,13 +16,13 @@ La aplicación corre en **Firebase App Hosting** (Next.js sobre Cloud Run) y gua
 | Paso | Quién | Estado |
 |---|---|---|
 | Firestore creado, reglas y protecciones | Hecho | ✅ |
-| Secretos `session-secret` y `setup-token` | Hecho | ✅ |
-| `apphosting.yaml`, página `/setup`, CI | Hecho | ✅ |
-| Plan **Blaze** y alerta de presupuesto | Tú | ⬜ |
-| Subir el código al repositorio privado de GitHub | Tú | ⬜ |
-| Crear el backend de App Hosting (conectar GitHub) | Tú, con ayuda | ⬜ |
-| Permitir que el backend acceda a los secretos y a Firestore | Tú / comandos de abajo | ⬜ |
-| Crear el administrador en `/setup` y probar | Tú | ⬜ |
+| Secreto `session-secret` | Hecho | ✅ |
+| `apphosting.yaml`, ingreso con Google, CI | Hecho | ✅ |
+| Plan **Blaze** y alerta de presupuesto | Tú | ✅ / revisar alerta |
+| Código en GitHub (repositorio privado) y backend `commission-manager` de App Hosting | Hecho | ✅ |
+| Permisos del backend sobre secretos y Firestore | Hecho | ✅ |
+| Ingreso con Google: activar el proveedor y autorizar el dominio en Firebase Authentication | Tú | ⬜ |
+| Primer ingreso con `BOOTSTRAP_ADMIN_EMAIL` y verificación en producción | Tú | ⬜ |
 
 ## Paso a paso
 
@@ -53,14 +53,17 @@ El backend usa la cuenta de servicio `firebase-app-hosting-compute@haptica-commi
 ```bash
 # Que pueda leer los secretos
 firebase apphosting:secrets:grantaccess session-secret --backend commission-manager --project haptica-commission-manager
-firebase apphosting:secrets:grantaccess setup-token    --backend commission-manager --project haptica-commission-manager
 ```
 Y para Firestore, en *Google Cloud Console → IAM → Conceder acceso*: principal = esa cuenta de servicio, rol **Cloud Datastore User** (`roles/datastore.user`). Es el rol mínimo para leer y escribir documentos.
 
-### 5. Primer despliegue y administrador
-Tras el primer despliegue abre `https://commission-manager--haptica-commission-manager.us-east4.hosted.app/setup`. Pide el token de configuración (se lee con `firebase apphosting:secrets:access setup-token`), el nombre, el correo y una contraseña de **12+ caracteres**. **Solo funciona una vez:** en cuanto existe cualquier usuario la página responde 404, aunque el token se filtre después. Además limita a 5 intentos fallidos por IP.
+### 5. Ingreso con Google (Firebase Authentication)
+La aplicación entra con **Google**; la contraseña queda solo como respaldo para usuarios que la tengan.
 
-Después de crear el administrador puedes **retirar** `SETUP_TOKEN` de `apphosting.yaml` (la página queda cerrada igualmente).
+1. Consola de Firebase → *Compilación → Authentication → Comenzar → Método de acceso → Google → Habilitar*. Elige el correo de asistencia del proyecto y guarda.
+2. *Authentication → Configuración → Dominios autorizados → Agregar dominio*: `commission-manager--haptica-commission-manager.us-east4.hosted.app` (y tu dominio propio cuando lo tengas). `localhost` ya viene autorizado.
+3. Abre la aplicación y haz clic en **Ingresar con Google**. La cuenta indicada en `BOOTSTRAP_ADMIN_EMAIL` (`apphosting.yaml`) se crea como **administrador** en su primer ingreso, con las políticas y la meta inicial. Cualquier otra cuenta debe estar registrada como usuario en la aplicación; si no, se le niega el acceso.
+
+Las claves `NEXT_PUBLIC_FIREBASE_*` son **públicas** por diseño (identifican la app web, no dan acceso a datos); la seguridad está en que el servidor verifica el token de Google y que las reglas de Firestore niegan todo acceso de clientes.
 
 ### 6. Verificación en producción
 1. Ingresa con el administrador y confirma que Dashboard, Configuración y Liquidaciones cargan.
@@ -81,4 +84,4 @@ Después de crear el administrador puedes **retirar** `SETUP_TOKEN` de `apphosti
 
 - **No definas `FIRESTORE_EMULATOR_HOST` en producción** (haría que la aplicación busque un emulador inexistente).
 - **No ejecutes `npm run seed` contra producción:** se niega a correr sin el emulador, pero no lo intentes con variables de entorno de otro entorno.
-- No subas `.env*` a Git ni compartas el `SETUP_TOKEN`.
+- No subas `.env*` a Git.

@@ -70,7 +70,7 @@ export async function authenticate(email: string, password: string): Promise<{ o
   const snap = await col(C.users).where("email", "==", mail).limit(1).get();
   const user = snap.empty ? null : (snap.docs[0].data() as UserDoc);
   // Se compara siempre contra un hash para no revelar si el correo existe.
-  const hash = user?.passwordHash ?? "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinv";
+  const hash = user?.passwordHash || "$2b$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidinv"; // usuarios solo-Google no tienen contraseña
   const valid = await bcrypt.compare(password, hash);
 
   if (!user || !valid) {
@@ -79,6 +79,12 @@ export async function authenticate(email: string, password: string): Promise<{ o
   }
 
   await throttleRef(emailKey).delete();
+  await startSession(user);
+  return { ok: true };
+}
+
+/** Crea la cookie de sesión (JWT httpOnly) de un usuario ya verificado. */
+export async function startSession(user: Pick<UserDoc, "id" | "email" | "name" | "role">) {
   const token = await signSession({ userId: user.id, email: user.email, name: user.name, role: user.role });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
@@ -88,7 +94,6 @@ export async function authenticate(email: string, password: string): Promise<{ o
     path: "/",
     maxAge: SESSION_HOURS * 3600,
   });
-  return { ok: true };
 }
 
 export async function destroySession() {
