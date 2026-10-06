@@ -52,13 +52,13 @@ El backend usa la cuenta de servicio `firebase-app-hosting-compute@haptica-commi
 
 ```bash
 # Que pueda leer los secretos
-firebase apphosting:secrets:grantaccess session-secret --backend haptica-commission-manager --project haptica-commission-manager
-firebase apphosting:secrets:grantaccess setup-token    --backend haptica-commission-manager --project haptica-commission-manager
+firebase apphosting:secrets:grantaccess session-secret --backend commission-manager --project haptica-commission-manager
+firebase apphosting:secrets:grantaccess setup-token    --backend commission-manager --project haptica-commission-manager
 ```
 Y para Firestore, en *Google Cloud Console → IAM → Conceder acceso*: principal = esa cuenta de servicio, rol **Cloud Datastore User** (`roles/datastore.user`). Es el rol mínimo para leer y escribir documentos.
 
 ### 5. Primer despliegue y administrador
-Tras el primer despliegue abre `https://<tu-backend>.<…>.hosted.app/setup`. Pide el token de configuración (se lee con `firebase apphosting:secrets:access setup-token`), el nombre, el correo y una contraseña de **12+ caracteres**. **Solo funciona una vez:** en cuanto existe cualquier usuario la página responde 404, aunque el token se filtre después. Además limita a 5 intentos fallidos por IP.
+Tras el primer despliegue abre `https://commission-manager--haptica-commission-manager.us-east4.hosted.app/setup`. Pide el token de configuración (se lee con `firebase apphosting:secrets:access setup-token`), el nombre, el correo y una contraseña de **12+ caracteres**. **Solo funciona una vez:** en cuanto existe cualquier usuario la página responde 404, aunque el token se filtre después. Además limita a 5 intentos fallidos por IP.
 
 Después de crear el administrador puedes **retirar** `SETUP_TOKEN` de `apphosting.yaml` (la página queda cerrada igualmente).
 

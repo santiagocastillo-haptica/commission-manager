@@ -17,7 +17,7 @@
   },
   "apphosting": [
     {
-      "backendId": "haptica-commission-manager",
+      "backendId": "commission-manager",
       "rootDir": ".",
       "ignore": [
         "node_modules",
