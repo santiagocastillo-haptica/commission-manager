@@ -6,13 +6,13 @@ import type { GoalDoc, PolicyDoc, UserDoc } from "./types";
 
 /** Escala de gamificación inicial (decisión D4): 0 / 0,5 / 1 / 1,5 con límite inferior inclusivo. */
 export const DEFAULT_TIERS = [
-  { min: "0", factor: "0", effectiveFrom: "2025-01-01" },
-  { min: "0.7", factor: "0.5", effectiveFrom: "2025-01-01" },
-  { min: "1", factor: "1", effectiveFrom: "2025-01-01" },
-  { min: "1.2", factor: "1.5", effectiveFrom: "2025-01-01" },
+  { min: "0", factor: "0", effectiveFrom: "2025-10-01" },
+  { min: "0.7", factor: "0.5", effectiveFrom: "2025-10-01" },
+  { min: "1", factor: "1", effectiveFrom: "2025-10-01" },
+  { min: "1.2", factor: "1.5", effectiveFrom: "2025-10-01" },
 ];
 
-export const DEFAULT_GOAL = { amountCOP: "390000000", effectiveFrom: "2025-01-01" };
+export const DEFAULT_GOAL = { amountCOP: "390000000", effectiveFrom: "2024-09-01" };
 
 export interface BootstrapInput {
   email: string;

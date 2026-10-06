@@ -50,7 +50,7 @@ suite("ingreso con Google", () => {
     expect(users).toHaveLength(1);
     expect(users[0]).toMatchObject({ email: "dueno@haptica.co", role: "ADMIN", name: "Dueño", passwordHash: "" });
     expect((await ref(C.policies, "GAMIFICATION").get()).exists).toBe(true);
-    expect((await ref(C.goals, "2025-01-01").get()).exists).toBe(true);
+    expect((await ref(C.goals, "2024-09-01").get()).exists).toBe(true);
     expect(await loginWithGoogleEmail("dueno@haptica.co", "Dueño")).toEqual({ ok: true });
     expect((await col(C.users).get()).size).toBe(1);
   });

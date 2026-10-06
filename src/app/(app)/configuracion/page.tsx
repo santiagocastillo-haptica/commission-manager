@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth";
 import { listAudit, listGoals, listMonths, listPolicyTiers, listRates } from "@/server/queries/settings";
 import { GoalDialog, MonthActions, MonthAdjustmentDialog, RateDialog } from "./settings-dialogs";
+import { DeleteTierSetButton, TierSetDialog } from "./tier-dialogs";
 
 export const metadata: Metadata = { title: "Configuración" };
 
@@ -205,6 +206,13 @@ async function RatesTab() {
   );
 }
 
+/** Agrupa los tramos por fecha de vigencia, de la más reciente a la más antigua. */
+function sets<T extends { effectiveFrom: string }>(tiers: T[]): { effectiveFrom: string; tiers: T[] }[] {
+  const map = new Map<string, T[]>();
+  for (const t of tiers) map.set(t.effectiveFrom, [...(map.get(t.effectiveFrom) ?? []), t]);
+  return [...map.entries()].sort(([a], [b]) => b.localeCompare(a)).map(([effectiveFrom, list]) => ({ effectiveFrom, tiers: list }));
+}
+
 async function PoliciesTab() {
   const policies = await listPolicyTiers();
   return (
@@ -226,36 +234,50 @@ async function PoliciesTab() {
               <p className="mt-3 text-sm text-foreground/80">
                 Reemplaza la regla de la meta: el porcentaje efectivo es el porcentaje base (1 %) multiplicado por el factor del tramo de cumplimiento del mes de venta. Los límites inferiores son inclusivos.
               </p>
-              <div className="mt-3 max-w-xl overflow-x-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/50">
-                      <TableHead>Cumplimiento mensual</TableHead>
-                      <TableHead className="text-right">Factor</TableHead>
-                      <TableHead className="text-right">Comisión efectiva (base 1 %)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {p.tiers
-                      .filter((t) => t.effectiveFrom === p.tiers[0]?.effectiveFrom)
-                      .map((t, i, arr) => (
-                        <TableRow key={t.id}>
-                          <TableCell className="num">
-                            {i === 0 && arr[1]
-                              ? `Menor al ${formatPercent(arr[1].min, 0)}`
-                              : arr[i + 1]
-                                ? `Desde ${formatPercent(t.min, 0)} y menor al ${formatPercent(arr[i + 1].min, 0)}`
-                                : `Igual o superior al ${formatPercent(t.min, 0)}`}
-                          </TableCell>
-                          <TableCell className="num text-right">{t.factor.replace(/\.?0+$/, "")}×</TableCell>
-                          <TableCell className="num text-right font-semibold">{formatPercent(D(t.factor).div(100), 2)}</TableCell>
+              {sets(p.tiers).map((set, _si, all) => (
+                <div key={set.effectiveFrom} className="mt-4 max-w-xl">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-bold">Vigente desde {formatDate(set.effectiveFrom)}</h3>
+                    {set.effectiveFrom === all.find((x) => x.effectiveFrom <= todayBogota())?.effectiveFrom && <Badge variant="success">ACTUAL</Badge>}
+                    <TierSetDialog initial={{ effectiveFrom: set.effectiveFrom, tiers: set.tiers }} trigger={<Button size="xs" variant="outline">Editar</Button>} />
+                    {all.length > 1 && <DeleteTierSetButton effectiveFrom={set.effectiveFrom} label={formatDate(set.effectiveFrom)} />}
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          <TableHead>Cumplimiento mensual</TableHead>
+                          <TableHead className="text-right">Factor</TableHead>
+                          <TableHead className="text-right">Comisión efectiva (base 1 %)</TableHead>
                         </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {set.tiers.map((t, i, arr) => (
+                          <TableRow key={t.id}>
+                            <TableCell className="num">
+                              {i === 0 && arr[1]
+                                ? `Menor al ${formatPercent(arr[1].min, 0)}`
+                                : arr[i + 1]
+                                  ? `Desde ${formatPercent(t.min, 0)} y menor al ${formatPercent(arr[i + 1].min, 0)}`
+                                  : `Igual o superior al ${formatPercent(t.min, 0)}`}
+                            </TableCell>
+                            <TableCell className="num text-right">{D(t.factor).toFixed()}×</TableCell>
+                            <TableCell className="num text-right font-semibold">{formatPercent(D(t.factor).div(100), 2)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ))}
+              <div className="mt-4">
+                <TierSetDialog trigger={<Button size="sm" variant="outline"><Plus data-icon="inline-start" /> Nueva escala</Button>} />
               </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                La política se asocia al registro de cada colaborador (no a su nombre), así que un cambio de datos personales no altera su cálculo. La edición de tramos no está disponible en la V1: cualquier cambio de escala se hace con una nueva versión desde el seed o la base de datos.
+                Antes de la primera escala vigente, quien tenga esta política se rige por la política general (meta alcanzada → su % base completo).
+              </p>
+              <p className="mt-3 text-xs text-muted-foreground">
+                La política se asocia al registro de cada colaborador (no a su nombre), así que un cambio de datos personales no altera su cálculo. Cambiar o eliminar una escala no es posible si ya validaste un mes con ella.
               </p>
             </>
           )}

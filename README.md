@@ -96,7 +96,7 @@ Firestore no tiene triggers ni restricciones `CHECK`: las garantías se imponen 
 ## Limitaciones conocidas (V1)
 
 - No hay un movimiento de «reversión» de un recaudo ya liquidado (las notas crédito y descuentos sí se manejan).
-- La escala de gamificación se consulta pero no se edita desde la interfaz.
+- La escala de gamificación se edita desde Configuración → Políticas (nueva escala con fecha de inicio, editar o eliminar), con la restricción de no tocar escalas ya usadas para validar un mes.
 - Un solo usuario administrador; la sesión no se puede revocar antes de vencer (8 h).
 - El logotipo en los PDF es un texto provisional («HÁPTICA») hasta contar con el archivo oficial; la tipografía es Montserrat/Helvetica en lugar de Gotham.
 - Las tasas de cambio se ingresan manualmente (sin integración con servicios externos).

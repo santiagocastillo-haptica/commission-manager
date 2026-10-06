@@ -1,4 +1,4 @@
-import { type DateOnly, formatMonth, startOfMonth } from "./dates";
+import { type DateOnly, formatDate, formatMonth, startOfMonth } from "./dates";
 import { DomainError } from "./project";
 import { D, Decimal, formatMoney, formatPercent, type DecimalValue, ZERO } from "./money";
 
@@ -74,6 +74,12 @@ export function effectiveRate(kind: PolicyKind, baseRate: DecimalValue, month: M
 
   const applicable = tiersForMonth(tiers, month.yearMonth);
   if (applicable.length === 0) {
+    // Antes del inicio de la gamificación la persona se rige por la política general (decisión confirmada con el negocio).
+    const start = tiers.map((t) => t.effectiveFrom).sort()[0];
+    if (start && startOfMonth(month.yearMonth) < start) {
+      const general = effectiveRate("GENERAL_THRESHOLD", base, month, tiers);
+      return { rate: general.rate, rule: `Antes del inicio de la gamificación (desde ${formatDate(start)}) rige la política general. ${general.rule}` };
+    }
     throw new DomainError(`No hay una escala de gamificación vigente para ${mes}: configúrala antes de validar el mes.`);
   }
   const { factor, min } = tierFactor(applicable, month.sales, month.goal);

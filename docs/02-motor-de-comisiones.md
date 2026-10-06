@@ -93,6 +93,6 @@ Bloqueante = no se puede cerrar hasta corregir. Advertencia = hay que reconocerl
 ## 6. Limitaciones conocidas (V1)
 
 - **Devolución de un recaudo ya liquidado:** no existe un movimiento de «reversión de recaudo». Una nota crédito o descuento cubre la reducción del valor de la factura; una devolución de dinero que deba recuperarse y volver a cobrarse requiere una futura función específica.
-- **Escala de gamificación:** se puede consultar pero no editar desde la interfaz.
+- **Escala de gamificación:** se edita desde Configuración → Políticas (con fecha de inicio). Antes de la primera escala, quien tiene esa política se rige por la política general (decisión del negocio: la analista comercial estuvo en la general hasta septiembre de 2025 y en gamificación desde octubre de 2025).
 - **Sesión:** un solo administrador; la sesión (JWT de 8 h) no se puede revocar antes de vencer y el límite de intentos de ingreso es por proceso. Para varias instancias o más usuarios habría que moverlo a la base de datos.
 - **Logotipo:** los PDF usan el nombre «HÁPTICA» como texto hasta contar con el archivo oficial.

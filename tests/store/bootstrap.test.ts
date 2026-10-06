@@ -25,7 +25,7 @@ suite("bootstrap de Firestore", () => {
     expect(((await ref(C.policies, "GENERAL").get()).data() as PolicyDoc).kind).toBe("GENERAL_THRESHOLD");
 
     const goals = await col(C.goals).get();
-    expect(goals.docs[0].data()).toMatchObject({ amountCOP: "390000000", effectiveFrom: "2025-01-01" });
+    expect(goals.docs[0].data()).toMatchObject({ amountCOP: "390000000", effectiveFrom: "2024-09-01" });
     expect((await col(C.auditLog).get()).size).toBe(1);
   });
 

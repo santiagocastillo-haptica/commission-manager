@@ -505,3 +505,26 @@ describe("topes, ajustes y compensaciones (revisión independiente)", () => {
     expect(run([prj], APR27).alerts.some((a) => a.code === "MISSING_FX")).toBe(true);
   });
 });
+
+describe("gamificación: antes de su fecha de inicio rige la política general", () => {
+  const FROM_OCT: Tier[] = TIERS.map((t) => ({ ...t, effectiveFrom: "2025-10-01" }));
+  const m = (ym: string, sales: string) => evaluateMonth(ym, sales, "390000000");
+
+  it("un mes anterior al inicio usa la regla de la meta (compuerta) con el % base completo", () => {
+    const reached = effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "390000000"), FROM_OCT);
+    expect(reached.rate.toFixed()).toBe("0.01"); // sin factor 1,5 aunque haya vendido más
+    expect(effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "500000000"), FROM_OCT).rate.toFixed()).toBe("0.01");
+    const missed = effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "389999999"), FROM_OCT);
+    expect(missed.rate.isZero()).toBe(true);
+    expect(missed.rule).toMatch(/Antes del inicio de la gamificación.*política general/);
+  });
+
+  it("desde el mes de inicio aplica la escala", () => {
+    expect(effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-10", "500000000"), FROM_OCT).rate.toFixed()).toBe("0.015");
+    expect(effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-10", "300000000"), FROM_OCT).rate.toFixed()).toBe("0.005");
+  });
+
+  it("sin ninguna escala configurada sigue siendo un error (no se adivina)", () => {
+    expect(() => effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-10", "500000000"), [])).toThrow(/No hay una escala/);
+  });
+});
