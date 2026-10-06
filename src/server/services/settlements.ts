@@ -178,7 +178,7 @@ function projectStatusFor(p: LoadedProject, collaboratorId: string, lines: CalcL
   // Solo aparecen los proyectos con movimiento en esta liquidación o con algo pendiente.
   if (!pendingInvoice && !pendingCollection && approved.isZero()) return null;
   return {
-    projectId: p.id, code: p.code, name: p.name, client: p.client, saleMonth: p.saleMonth, currency: p.currency,
+    projectId: p.id, code: p.code, client: p.client, saleMonth: p.saleMonth, currency: p.currency,
     netBase: D(p.netBase).toFixed(), saleAmount: D(p.saleAmount).toFixed(), invoiced: fin.invoiced.toFixed(), collected: fin.collected.toFixed(),
     pendingInvoice, pendingCollection, pendingPotentialCOP: pendingPotential.toFixed(), approvedInThisCOP: approved.toFixed(),
   };

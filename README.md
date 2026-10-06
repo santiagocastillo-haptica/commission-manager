@@ -1,6 +1,6 @@
 # Háptica Commission Manager
 
-Aplicación web interna para **administrar, calcular, liquidar y auditar las comisiones comerciales** de Háptica (Colombia, Chile y México). Reemplaza el proceso manual: el administrador actualiza los recaudos, selecciona el período, revisa los resultados y genera todas las liquidaciones sin hacer cálculos a mano.
+Aplicación web interna para **administrar, calcular, liquidar y auditar las comisiones comerciales** de Háptica (Colombia, Chile, México, Guatemala, Estados Unidos, Ecuador y Perú). Reemplaza el proceso manual: el administrador actualiza los recaudos, selecciona el período, revisa los resultados y genera todas las liquidaciones sin hacer cálculos a mano.
 
 | Documento | Contenido |
 |---|---|

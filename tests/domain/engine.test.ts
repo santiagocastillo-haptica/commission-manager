@@ -50,7 +50,6 @@ function project(o: ProjectOpts): SettlementProject {
   return {
     id: id("prj"),
     code: "HAP-TEST",
-    name: "Proyecto de prueba",
     currency: o.currency ?? "COP",
     saleAmount: o.saleAmount,
     netBase: D(o.saleAmount).minus(o.costs ?? 0).toFixed(),

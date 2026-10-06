@@ -29,7 +29,6 @@ export default async function EditProjectPage({ params }: PageProps<"/proyectos/
         defaultGoalCOP={ctx.defaultGoalCOP}
         initial={{
           code: project.code,
-          name: project.name,
           client: project.client,
           country: project.country,
           saleDate: project.saleDate,

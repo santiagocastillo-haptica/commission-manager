@@ -35,7 +35,6 @@ export function buildCommissionProjects(
     .map((p) => ({
       id: p.id,
       code: p.code,
-      name: p.name,
       client: p.client,
       currency: p.currency,
       saleAmount: p.saleAmount,

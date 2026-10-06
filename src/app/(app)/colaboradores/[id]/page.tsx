@@ -122,7 +122,7 @@ export default async function CollaboratorDetailPage({ params }: PageProps<"/col
                     <Link href={`/proyectos/${p.id}`} className="font-semibold text-brand-deep underline-offset-4 hover:underline">
                       {p.code}
                     </Link>
-                    <div className="text-xs text-muted-foreground">{p.name}</div>
+                    <div className="text-xs text-muted-foreground">{p.client}</div>
                   </TableCell>
                   <TableCell className="capitalize">{formatMonth(p.saleMonth)}</TableCell>
                   <TableCell className="num text-right">{formatMoney(p.netBase, p.currency, 0)}</TableCell>

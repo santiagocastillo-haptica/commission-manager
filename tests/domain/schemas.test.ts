@@ -3,7 +3,6 @@ import { collectionSchema, invoiceSchema, projectSchema } from "@/lib/schemas";
 
 const valid = {
   code: "HAP-2026-020",
-  name: "Proyecto de prueba",
   client: "Cliente Demo",
   country: "CO",
   saleDate: "2026-10-05",
@@ -25,11 +24,10 @@ describe("validación de proyectos", () => {
   });
 
   it("un formulario vacío reporta errores por campo y NUNCA lanza excepciones", () => {
-    const empty = { ...valid, code: "", name: "", client: "", saleAmount: "", providerCosts: "", expectedInvoices: "" };
+    const empty = { ...valid, code: "", client: "", saleAmount: "", providerCosts: "", expectedInvoices: "" };
     const r = projectSchema.safeParse(empty);
     expect(r.success).toBe(false);
     const e = issues(r);
-    expect(e.name).toBeTruthy();
     expect(e.saleAmount).toBeTruthy();
     expect(e.providerCosts).toBeTruthy();
   });

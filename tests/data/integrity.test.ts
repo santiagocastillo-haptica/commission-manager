@@ -28,7 +28,7 @@ async function liquidated() {
   ids.ana = ok(await person("Ana", "a@t.co", "GENERAL"));
   ids.nic = ok(await person("Nicholle Torres", "n@t.co", "GAMIFICATION"));
   ok(await saveProjectAction(null, {
-    code: "S-001", name: "Proyecto S", client: "Cliente S", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "468000000", providerCosts: "0",
+    code: "S-001", client: "Cliente S", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "468000000", providerCosts: "0",
     expectedInvoices: "2", notes: "", assignments: [{ collaboratorId: ids.ana, ratePercent: "1" }, { collaboratorId: ids.nic, ratePercent: "1" }],
   } as Parameters<typeof saveProjectAction>[1]));
   ids.invoice = ok(await saveInvoiceAction(null, { projectId: "S-001", number: "FE-S1", status: "ISSUED", issueDate: "2026-02-01", dueDate: "", amountPreTax: "100000000", netBaseExplicit: "", notes: "" } as Parameters<typeof saveInvoiceAction>[1]));

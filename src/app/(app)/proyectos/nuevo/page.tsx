@@ -23,7 +23,6 @@ export default async function NewProjectPage() {
         defaultGoalCOP={ctx.defaultGoalCOP}
         initial={{
           code: suggestProjectCode(year, codes),
-          name: "",
           client: "",
           country: "CO",
           saleDate: today,

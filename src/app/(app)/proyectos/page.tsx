@@ -9,6 +9,7 @@ import { StatCard } from "@/components/stat-card";
 import { BillingBadge, CollectionBadge, VoidedBadge } from "@/components/status-badges";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { COUNTRY_LABEL, COUNTRY_OPTIONS } from "@/domain/countries";
 import { formatDate, formatMonth } from "@/domain/dates";
 import { D, formatCOP0, formatMoney, formatPercent, sum, type CurrencyCode } from "@/domain/money";
 import { requireSession } from "@/server/auth";
@@ -17,7 +18,6 @@ import { listProjects, projectYears } from "@/server/queries/projects";
 
 export const metadata: Metadata = { title: "Proyectos" };
 
-const COUNTRY: Record<string, string> = { CO: "Colombia", CL: "Chile", MX: "México" };
 
 export default async function ProjectsPage({ searchParams }: PageProps<"/proyectos">) {
   await requireSession();
@@ -63,10 +63,10 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/proyect
       </div>
 
       <FilterBar
-        searchPlaceholder="Buscar por código, nombre o cliente…"
+        searchPlaceholder="Buscar por código o cliente…"
         selects={[
           { name: "year", label: "Año de venta", options: years.map((y) => ({ value: y, label: y })), allLabel: "Todos" },
-          { name: "country", label: "País", options: [{ value: "CO", label: "Colombia" }, { value: "CL", label: "Chile" }, { value: "MX", label: "México" }] },
+          { name: "country", label: "País", options: COUNTRY_OPTIONS },
           { name: "collaborator", label: "Colaborador", options: collaborators.map((c) => ({ value: c.id, label: c.fullName })) },
           { name: "eligibility", label: "Elegibilidad", options: [{ value: "PENDING_VALIDATION", label: "Pendiente de validación" }, { value: "ELIGIBLE", label: "Elegible" }, { value: "NOT_ELIGIBLE", label: "No elegible" }] },
           { name: "billing", label: "Facturación / recaudo", options: [{ value: "pending-invoice", label: "Pendiente de facturar" }, { value: "pending-collection", label: "Pendiente de recaudo" }, { value: "done", label: "Recaudado completo" }] },
@@ -99,12 +99,11 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/proyect
                     <TableCell className="max-w-[300px]">
                       <Link href={`/proyectos/${p.id}`} className="num font-semibold text-brand-deep underline-offset-4 hover:underline">{p.code}</Link>
                       {p.voided && <span className="ml-2"><VoidedBadge /></span>}
-                      <div className="truncate text-sm" title={p.name}>{p.name}</div>
                       <div className="truncate text-xs text-muted-foreground">{p.client}</div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <div className="capitalize">{formatMonth(p.saleMonth)}</div>
-                      <div className="text-xs text-muted-foreground">{formatDate(p.saleDate)} · {COUNTRY[p.country]}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(p.saleDate)} · {COUNTRY_LABEL[p.country]}</div>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-right">
                       <div className="num font-medium">{formatMoney(p.saleAmount, cur, 0)}</div>

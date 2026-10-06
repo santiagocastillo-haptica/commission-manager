@@ -10,7 +10,7 @@ type Collab = ReportData["collaborators"][number];
 const COLS: { key: string; label: string; w: number; right?: boolean }[] = [
   { key: "sale", label: "Mes de venta", w: 50 },
   { key: "code", label: "Código", w: 62 },
-  { key: "project", label: "Proyecto", w: 180 },
+  { key: "project", label: "Cliente", w: 180 },
   { key: "net", label: "Base neta del proyecto", w: 74, right: true },
   { key: "inv", label: "Factura", w: 50 },
   { key: "invDate", label: "Fecha factura", w: 48 },
@@ -148,7 +148,7 @@ function IndividualDoc({ data, collab }: { data: ReportData; collab: Collab }) {
                     <View key={l.id} style={[s.tr, isAdj ? s.trAdj : {}]} wrap={false}>
                       <Text style={cell(0)}>{formatMonthShort(sn.saleMonth)}</Text>
                       <Text style={[cell(1), s.bold]}>{sn.projectCode}</Text>
-                      <Text style={cell(2)}>{sn.projectName}</Text>
+                      <Text style={cell(2)}>{sn.client}</Text>
                       <Text style={cell(3)}>{formatMoney(sn.projectNetBase, cur, 0)}</Text>
                       <Text style={cell(4)}>{isAdj ? "Ajuste" : (sn.invoiceNumber ?? "—")}</Text>
                       <Text style={cell(5)}>{isAdj ? "—" : formatDate(sn.invoiceDate)}</Text>
@@ -234,7 +234,7 @@ function StatusTable({ title, rows, empty, showPending }: { title: string; rows:
         <View>
           <View style={[s.th, { backgroundColor: C.petroleo }]}>
             <Text style={{ width: 70 }}>Código</Text>
-            <Text style={{ width: 170 }}>Proyecto</Text>
+            <Text style={{ width: 170 }}>Cliente</Text>
             <Text style={{ width: 180, textAlign: "right", paddingRight: 6 }}>Facturado / venta</Text>
             <Text style={{ width: 100, textAlign: "right", paddingRight: 6 }}>Recaudado</Text>
             <Text style={{ width: 120, textAlign: "right", paddingRight: 6 }}>Aprobada en esta liquidación</Text>
@@ -245,7 +245,7 @@ function StatusTable({ title, rows, empty, showPending }: { title: string; rows:
             return (
               <View key={p.projectId} style={s.tr} wrap={false}>
                 <Text style={[{ width: 70 }, s.bold]}>{p.code}</Text>
-                <Text style={{ width: 170 }}>{p.name}</Text>
+                <Text style={{ width: 170 }}>{p.client}</Text>
                 <Text style={{ width: 180, textAlign: "right", paddingRight: 6 }}>
                   {formatMoney(p.invoiced, cur, 0)} / {formatMoney(p.saleAmount, cur, 0)}
                 </Text>

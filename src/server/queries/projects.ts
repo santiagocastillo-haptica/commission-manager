@@ -1,4 +1,5 @@
 import { projectEligibility, type EligibilityStatus } from "@/domain/eligibility";
+import type { CountryCode } from "@/domain/countries";
 import { D } from "@/domain/money";
 import { projectFinancials, type BillingStatus, type CollectionStatus } from "@/domain/project-status";
 import type { CollaboratorDoc, InvoiceDoc, MonthlySalesDoc, PolicyDoc, ProjectDoc } from "@/store";
@@ -19,9 +20,8 @@ export interface ProjectAssignmentRow {
 export interface ProjectRow {
   id: string;
   code: string;
-  name: string;
   client: string;
-  country: "CO" | "CL" | "MX";
+  country: CountryCode;
   saleDate: string;
   saleMonth: string;
   currency: "COP" | "USD" | "CLP" | "MXN";
@@ -110,7 +110,6 @@ export function toProjectRow(p: ProjectDoc, w: World, facts: ReturnType<typeof c
   return {
     id: p.id,
     code: p.code,
-    name: p.name,
     client: p.client,
     country: p.country,
     saleDate: p.saleDate,
@@ -164,7 +163,7 @@ export async function listProjects(filters: ProjectFilters = {}): Promise<Projec
   let docs = w.projects.filter((p) => {
     if (filters.id && p.id !== filters.id) return false;
     if (!filters.showVoided && p.voidedAt) return false;
-    if (q && ![p.code, p.name, p.client].some((v) => v.toLowerCase().includes(q))) return false;
+    if (q && ![p.code, p.client].some((v) => v.toLowerCase().includes(q))) return false;
     if (filters.year && !p.saleMonth.startsWith(`${filters.year}-`)) return false;
     if (filters.country && p.country !== filters.country) return false;
     if (filters.collaboratorId && !p.collaboratorIds.includes(filters.collaboratorId)) return false;

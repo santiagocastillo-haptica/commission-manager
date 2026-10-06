@@ -49,7 +49,7 @@ suite("escala de gamificación: historia y edición", () => {
 
   it("no permite cambiar una escala que ya se usó para validar un mes", async () => {
     const nic = idOf(await saveCollaboratorAction(null, { fullName: "Nicholle", email: "n@t.co", position: "Analista", status: "ACTIVE", policyId: "GAMIFICATION", joinDate: "", notes: "" }));
-    idOf(await saveProjectAction(null, { code: "G-001", name: "Proyecto G", client: "Cliente", country: "CO", saleDate: "2025-11-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
+    idOf(await saveProjectAction(null, { code: "G-001", client: "Cliente", country: "CO", saleDate: "2025-11-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
     await runTx((tx) => validateMonth(tx, "2025-11", "u1", "2026-01-01"));
     const blocked = await saveTierSetAction({ policyCode: "GAMIFICATION", effectiveFrom: "2025-10-01", tiers: scale(["0", "0"], ["1", "1"]) });
     expect(blocked.ok).toBe(false);
@@ -62,7 +62,7 @@ suite("escala de gamificación: historia y edición", () => {
   it("historia de la analista: política general antes de octubre de 2025 y escala desde entonces", async () => {
     const nic = idOf(await saveCollaboratorAction(null, { fullName: "Nicholle", email: "n@t.co", position: "Analista", status: "ACTIVE", policyId: "GAMIFICATION", joinDate: "", notes: "" }));
     const project = (code: string, date: string) =>
-      saveProjectAction(null, { code, name: `Proyecto ${code}`, client: "Cliente", country: "CO", saleDate: date, currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]);
+      saveProjectAction(null, { code, client: "Cliente", country: "CO", saleDate: date, currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]);
     idOf(await project("H-SEP", "2024-09-10")); // primer mes de la política
     idOf(await project("H-AGO", "2025-08-10"));
     idOf(await project("H-OCT", "2025-10-10"));

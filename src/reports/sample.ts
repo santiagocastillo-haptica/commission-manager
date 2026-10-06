@@ -11,7 +11,7 @@ function line(i: number, project = "HAP-2026-001"): ReportData["collaborators"][
     netBaseCOP: "80000000",
     commissionCOP: "800000",
     snapshot: {
-      projectCode: project, projectName: "Proyecto de prueba con un nombre bastante largo para forzar el salto de línea", saleMonth: "2026-01", projectNetBase: "160000000",
+      projectCode: project, saleMonth: "2026-01", projectNetBase: "160000000",
       invoiceNumber: `FE-${i}`, invoiceDate: "2026-02-01", collectionDate: "2026-05-10", amountReceived: "90000000", collaboratorName: "Ana Prueba", collaboratorPosition: "Service Designer",
       client: "Cliente", currency: "COP", fxRate: "1", amountReceivedCOP: "90000000", saleAmountCOP: "180000000", saleDate: "2026-01-10", type: "COLLECTION", isLate: i % 7 === 0,
     },
@@ -35,8 +35,8 @@ export function sampleReportData(lineCount: number): ReportData {
         snapshot: {
           collaboratorId: "c1", fullName: "Ana Prueba", email: "ana@example.com", position: "Service Designer", policyCode: "GENERAL",
           projects: [
-            { projectId: "p1", code: "HAP-2026-001", name: "Proyecto A", client: "Cliente", saleMonth: "2026-01", currency: "COP", netBase: "160000000", saleAmount: "180000000", invoiced: "180000000", collected: "180000000", pendingInvoice: false, pendingCollection: false, pendingPotentialCOP: "0", approvedInThisCOP: "1600000" },
-            { projectId: "p2", code: "HAP-2026-002", name: "Proyecto B", client: "Cliente", saleMonth: "2026-02", currency: "USD", netBase: "40000", saleAmount: "50000", invoiced: "20000", collected: "10000", pendingInvoice: true, pendingCollection: true, pendingPotentialCOP: "1200000", approvedInThisCOP: "0" },
+            { projectId: "p1", code: "HAP-2026-001", client: "Cliente", saleMonth: "2026-01", currency: "COP", netBase: "160000000", saleAmount: "180000000", invoiced: "180000000", collected: "180000000", pendingInvoice: false, pendingCollection: false, pendingPotentialCOP: "0", approvedInThisCOP: "1600000" },
+            { projectId: "p2", code: "HAP-2026-002", client: "Cliente", saleMonth: "2026-02", currency: "USD", netBase: "40000", saleAmount: "50000", invoiced: "20000", collected: "10000", pendingInvoice: true, pendingCollection: true, pendingPotentialCOP: "1200000", approvedInThisCOP: "0" },
           ],
         },
         lines,

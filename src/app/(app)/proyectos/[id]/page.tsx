@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { COUNTRY_LABEL } from "@/domain/countries";
 import { formatDate } from "@/domain/dates";
 import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money";
 import { requireSession } from "@/server/auth";
@@ -22,7 +23,6 @@ import { getProject, projectRateHistory } from "@/server/queries/projects";
 
 export const metadata: Metadata = { title: "Proyecto" };
 
-const COUNTRY: Record<string, string> = { CO: "Colombia", CL: "Chile", MX: "México" };
 const KIND: Record<string, string> = {
   CREDIT_NOTE: "Nota crédito",
   DISCOUNT: "Descuento posterior",
@@ -63,8 +63,8 @@ export default async function ProjectDetailPage({ params }: PageProps<"/proyecto
         <ArrowLeft className="size-3.5" /> Proyectos
       </Link>
       <PageHeader
-        eyebrow={`${project.code} · ${project.client}`}
-        title={project.name}
+        eyebrow={project.code}
+        title={project.client}
         actions={
           project.voided ? (
             <VoidedBadge />
@@ -88,7 +88,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/proyecto
         <BillingBadge status={project.fin.billingStatus} />
         <CollectionBadge status={project.fin.collectionStatus} />
         <span className="text-sm text-muted-foreground">
-          {COUNTRY[project.country]} · vendido el {formatDate(project.saleDate)} · {project.fin.issuedInvoices} de {project.expectedInvoices} facturas emitidas
+          {COUNTRY_LABEL[project.country]} · vendido el {formatDate(project.saleDate)} · {project.fin.issuedInvoices} de {project.expectedInvoices} facturas emitidas
         </span>
       </div>
 

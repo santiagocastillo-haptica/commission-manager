@@ -8,7 +8,7 @@ export type Iso = string;
 export type DateOnly = string;
 export type Money = string;
 export type Currency = "COP" | "USD" | "CLP" | "MXN";
-export type Country = "CO" | "CL" | "MX";
+export type Country = import("@/domain/countries").CountryCode;
 
 export interface Stamped {
   createdAt: Iso;
@@ -129,7 +129,6 @@ export interface AssignmentDoc {
 export interface ProjectDoc extends Stamped, Voidable {
   id: string; // = code
   code: string;
-  name: string;
   client: string;
   country: Country;
   saleDate: DateOnly;

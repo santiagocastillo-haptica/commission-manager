@@ -34,7 +34,6 @@ interface InvoiceSpec {
 }
 interface ProjectSpec {
   code: string;
-  name: string;
   client: string;
   country: Country;
   saleDate: string;
@@ -58,72 +57,72 @@ const COLLABORATORS = [
 
 const PROJECTS: ProjectSpec[] = [
   // ── Octubre 2025: 420 M (sobre la meta) ──
-  { code: "HAP-2025-001", name: "Rediseño del journey de onboarding", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2025-10-08", currency: "COP", sale: "180000000", costs: "20000000", expectedInvoices: 2, assignments: [["laura", "1"], ["nicholle", "1"]],
+  { code: "HAP-2025-001", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2025-10-08", currency: "COP", sale: "180000000", costs: "20000000", expectedInvoices: 2, assignments: [["laura", "1"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1001", issueDate: "2025-10-20", amount: "90000000", collections: [{ date: "2025-11-18", amount: "90000000" }] },
       { number: "FE-1008", issueDate: "2025-12-10", amount: "90000000", collections: [{ date: "2026-01-20", amount: "90000000" }] },
     ] },
-  { code: "HAP-2025-002", name: "Legal design de contratos de seguros", client: "Aseguradora Demo S.A.S.", country: "CO", saleDate: "2025-10-22", currency: "COP", sale: "150000000", costs: "0", expectedInvoices: 3, assignments: [["andres", "0.8"], ["camila", "0.5"]],
+  { code: "HAP-2025-002", client: "Aseguradora Demo S.A.S.", country: "CO", saleDate: "2025-10-22", currency: "COP", sale: "150000000", costs: "0", expectedInvoices: 3, assignments: [["andres", "0.8"], ["camila", "0.5"]],
     invoices: [
       { number: "FE-1004", issueDate: "2025-11-12", amount: "50000000", collections: [{ date: "2025-11-30", amount: "50000000" }] },
       { number: "FE-1030", issueDate: "2026-02-10", amount: "50000000", collections: [{ date: "2026-02-27", amount: "30000000" }] },
       { number: "FE-1066", issueDate: "2026-06-02", amount: "50000000", collections: [{ date: "2026-07-14", amount: "50000000" }] },
     ] },
-  { code: "HAP-2025-003", name: "Diagnóstico de servicios", client: "Comercializadora Sin Comisión Ltda.", country: "CO", saleDate: "2025-10-29", currency: "COP", sale: "90000000", costs: "0", expectedInvoices: 1, assignments: [],
+  { code: "HAP-2025-003", client: "Comercializadora Sin Comisión Ltda.", country: "CO", saleDate: "2025-10-29", currency: "COP", sale: "90000000", costs: "0", expectedInvoices: 1, assignments: [],
     invoices: [{ number: "FE-1006", issueDate: "2025-11-05", amount: "90000000", collections: [{ date: "2025-12-02", amount: "90000000" }] }] },
 
   // ── Noviembre 2025: ≈300 M (bajo la meta) ──
-  { code: "HAP-2025-004", name: "Laboratorio de innovación en servicios", client: "Tech Demo Inc.", country: "MX", saleDate: "2025-11-10", currency: "USD", sale: "40000", costs: "5000", refRate: "4100", expectedInvoices: 2, assignments: [["camila", "1"], ["sebastian", "0.7"]],
+  { code: "HAP-2025-004", client: "Tech Demo Inc.", country: "MX", saleDate: "2025-11-10", currency: "USD", sale: "40000", costs: "5000", refRate: "4100", expectedInvoices: 2, assignments: [["camila", "1"], ["sebastian", "0.7"]],
     invoices: [
       { number: "FE-1010", issueDate: "2025-11-25", amount: "20000", collections: [{ date: "2025-12-15", amount: "20000", fx: "4180" }] },
       { number: "FE-1027", issueDate: "2026-03-05", amount: "20000", collections: [{ date: "2026-03-28", amount: "10000", fx: "4050" }, { date: "2026-05-12", amount: "10000", fx: "4010" }] },
     ] },
-  { code: "HAP-2025-005", name: "Ruta de servicio en salud", client: "Clínica Demo S.A.", country: "CO", saleDate: "2025-11-20", currency: "COP", sale: "136000000", costs: "16000000", expectedInvoices: 1, assignments: [["nicholle", "1"], ["laura", "0.5"]],
+  { code: "HAP-2025-005", client: "Clínica Demo S.A.", country: "CO", saleDate: "2025-11-20", currency: "COP", sale: "136000000", costs: "16000000", expectedInvoices: 1, assignments: [["nicholle", "1"], ["laura", "0.5"]],
     invoices: [{ number: "FE-1012", issueDate: "2025-12-01", amount: "136000000", collections: [{ date: "2026-01-15", amount: "136000000" }] }] },
 
   // ── Diciembre 2025: exactamente 390 M ──
-  { code: "HAP-2025-006", name: "Plataforma de gestión legal", client: "Constructora Demo S.A.S.", country: "CO", saleDate: "2025-12-02", currency: "COP", sale: "250000000", costs: "50000000", expectedInvoices: 2, assignments: [["andres", "1"], ["sebastian", "0.5"], ["nicholle", "1"]],
+  { code: "HAP-2025-006", client: "Constructora Demo S.A.S.", country: "CO", saleDate: "2025-12-02", currency: "COP", sale: "250000000", costs: "50000000", expectedInvoices: 2, assignments: [["andres", "1"], ["sebastian", "0.5"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1015", issueDate: "2025-12-15", amount: "150000000", collections: [{ date: "2026-02-10", amount: "150000000" }] },
       { number: "FE-1040", issueDate: "2026-04-10", amount: "100000000", collections: [{ date: "2026-05-20", amount: "70000000" }] },
     ] },
-  { code: "HAP-2025-007", name: "Taller de cocreación", client: "Fundación Demo", country: "CO", saleDate: "2025-12-12", currency: "COP", sale: "140000000", costs: "0", expectedInvoices: 1, assignments: [["camila", "0.5"]],
+  { code: "HAP-2025-007", client: "Fundación Demo", country: "CO", saleDate: "2025-12-12", currency: "COP", sale: "140000000", costs: "0", expectedInvoices: 1, assignments: [["camila", "0.5"]],
     invoices: [{ number: "FE-1017", issueDate: "2025-12-20", amount: "140000000", collections: [{ date: "2026-01-30", amount: "140000000" }] }] },
 
   // ── Enero 2026: 470 M (120,5 %) ──
-  { code: "HAP-2026-001", name: "Rediseño de la experiencia de cliente", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2026-01-14", currency: "COP", sale: "300000000", costs: "45000000", expectedInvoices: 3, assignments: [["laura", "1"], ["camila", "1"], ["nicholle", "1"]],
+  { code: "HAP-2026-001", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2026-01-14", currency: "COP", sale: "300000000", costs: "45000000", expectedInvoices: 3, assignments: [["laura", "1"], ["camila", "1"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1022", issueDate: "2026-01-30", amount: "100000000", collections: [{ date: "2026-03-10", amount: "100000000" }] },
       { number: "FE-1049", issueDate: "2026-05-05", amount: "100000000", collections: [{ date: "2026-06-20", amount: "100000000" }] },
       { number: "FE-1085", issueDate: "2026-08-20", amount: "100000000", collections: [{ date: "2026-09-25", amount: "100000000" }] },
     ] },
-  { code: "HAP-2026-002", name: "Investigación de usuarios", client: "Telco Demo S.A.", country: "CO", saleDate: "2026-01-27", currency: "COP", sale: "170000000", costs: "30000000", expectedInvoices: 1, assignments: [["sebastian", "1"]],
+  { code: "HAP-2026-002", client: "Telco Demo S.A.", country: "CO", saleDate: "2026-01-27", currency: "COP", sale: "170000000", costs: "30000000", expectedInvoices: 1, assignments: [["sebastian", "1"]],
     invoices: [{ number: "FE-1026", issueDate: "2026-02-05", amount: "170000000", collections: [{ date: "2026-04-08", amount: "170000000" }] }] },
 
   // ── Febrero 2026: ≈279 M (71,6 %) ──
-  { code: "HAP-2026-003", name: "Blueprint de servicios", client: "Utility Demo S.A. E.S.P.", country: "CO", saleDate: "2026-02-09", currency: "COP", sale: "200000000", costs: "20000000", expectedInvoices: 1, assignments: [["andres", "1"], ["nicholle", "1"]],
+  { code: "HAP-2026-003", client: "Utility Demo S.A. E.S.P.", country: "CO", saleDate: "2026-02-09", currency: "COP", sale: "200000000", costs: "20000000", expectedInvoices: 1, assignments: [["andres", "1"], ["nicholle", "1"]],
     invoices: [{ number: "FE-1032", issueDate: "2026-02-20", amount: "200000000", collections: [{ date: "2026-04-30", amount: "200000000" }] }] },
-  { code: "HAP-2026-004", name: "Piloto de atención al cliente", client: "Retail Demo Chile SpA", country: "CL", saleDate: "2026-02-23", currency: "CLP", sale: "18000000", costs: "0", refRate: "4.40", expectedInvoices: 1, assignments: [["laura", "0.6"]],
+  { code: "HAP-2026-004", client: "Retail Demo Chile SpA", country: "CL", saleDate: "2026-02-23", currency: "CLP", sale: "18000000", costs: "0", refRate: "4.40", expectedInvoices: 1, assignments: [["laura", "0.6"]],
     invoices: [{ number: "FE-1035", issueDate: "2026-03-02", amount: "18000000", collections: [{ date: "2026-04-15", amount: "18000000", fx: "4.55" }] }] },
 
   // ── Marzo 2026: 250 M (64 %) ──
-  { code: "HAP-2026-005", name: "Estrategia de portafolio de productos", client: "Seguros Demo S.A.", country: "CO", saleDate: "2026-03-11", currency: "COP", sale: "250000000", costs: "0", expectedInvoices: 2, assignments: [["camila", "1"], ["nicholle", "1"]],
+  { code: "HAP-2026-005", client: "Seguros Demo S.A.", country: "CO", saleDate: "2026-03-11", currency: "COP", sale: "250000000", costs: "0", expectedInvoices: 2, assignments: [["camila", "1"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1038", issueDate: "2026-03-25", amount: "125000000", collections: [{ date: "2026-05-15", amount: "125000000" }] },
       { number: "FE-1090", issueDate: "2026-09-10", amount: "125000000" },
     ] },
 
   // ── Abril 2026: 400 M (102,6 %) ──
-  { code: "HAP-2026-006", name: "Habilitador legal de datos personales", client: "Fintech Demo S.A.S.", country: "CO", saleDate: "2026-04-07", currency: "COP", sale: "260000000", costs: "60000000", expectedInvoices: 2, assignments: [["andres", "1"], ["sebastian", "1"], ["nicholle", "1"]],
+  { code: "HAP-2026-006", client: "Fintech Demo S.A.S.", country: "CO", saleDate: "2026-04-07", currency: "COP", sale: "260000000", costs: "60000000", expectedInvoices: 2, assignments: [["andres", "1"], ["sebastian", "1"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1044", issueDate: "2026-04-20", amount: "130000000", collections: [{ date: "2026-06-02", amount: "130000000" }] },
       { number: "FE-1071", issueDate: "2026-07-15", amount: "130000000" },
     ] },
-  { code: "HAP-2026-007", name: "Capacitación en service design", client: "Universidad Demo", country: "CO", saleDate: "2026-04-22", currency: "COP", sale: "140000000", costs: "10000000", expectedInvoices: 1, assignments: [["laura", "0.5"]],
+  { code: "HAP-2026-007", client: "Universidad Demo", country: "CO", saleDate: "2026-04-22", currency: "COP", sale: "140000000", costs: "10000000", expectedInvoices: 1, assignments: [["laura", "0.5"]],
     invoices: [{ number: "FE-1047", issueDate: "2026-05-02", amount: "140000000", collections: [{ date: "2026-05-28", amount: "140000000" }] }] },
 
   // ── Mayo 2026: 350 M (89,7 %) ──
-  { code: "HAP-2026-008", name: "Sistema de diseño de servicios", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2026-05-06", currency: "COP", sale: "350000000", costs: "70000000", expectedInvoices: 3, assignments: [["laura", "1"], ["camila", "1"], ["nicholle", "1"]],
+  { code: "HAP-2026-008", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2026-05-06", currency: "COP", sale: "350000000", costs: "70000000", expectedInvoices: 3, assignments: [["laura", "1"], ["camila", "1"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1052", issueDate: "2026-05-20", amount: "150000000", collections: [{ date: "2026-07-02", amount: "150000000" }] },
       { number: "FE-1074", issueDate: "2026-08-01", amount: "100000000", collections: [{ date: "2026-09-03", amount: "60000000" }] },
@@ -131,30 +130,30 @@ const PROJECTS: ProjectSpec[] = [
     ] },
 
   // ── Junio 2026: 520 M (133 %) ──
-  { code: "HAP-2026-009", name: "Programa de transformación de servicios", client: "Entidad Pública Demo", country: "CO", saleDate: "2026-06-03", currency: "COP", sale: "400000000", costs: "100000000", expectedInvoices: 2, assignments: [["andres", "1"], ["sebastian", "1"], ["nicholle", "1"]],
+  { code: "HAP-2026-009", client: "Entidad Pública Demo", country: "CO", saleDate: "2026-06-03", currency: "COP", sale: "400000000", costs: "100000000", expectedInvoices: 2, assignments: [["andres", "1"], ["sebastian", "1"], ["nicholle", "1"]],
     invoices: [
       { number: "FE-1060", issueDate: "2026-06-20", amount: "200000000", collections: [{ date: "2026-08-18", amount: "200000000" }] },
       { number: "FE-1088", issueDate: "2026-09-15", amount: "200000000" },
     ] },
-  { code: "HAP-2026-010", name: "Legal design de términos y condiciones", client: "Retail Demo S.A.", country: "CO", saleDate: "2026-06-18", currency: "COP", sale: "120000000", costs: "0", expectedInvoices: 1, assignments: [["camila", "0.8"]],
+  { code: "HAP-2026-010", client: "Retail Demo S.A.", country: "CO", saleDate: "2026-06-18", currency: "COP", sale: "120000000", costs: "0", expectedInvoices: 1, assignments: [["camila", "0.8"]],
     invoices: [{ number: "FE-1068", issueDate: "2026-07-01", amount: "120000000", collections: [{ date: "2026-09-29", amount: "120000000" }] }] },
 
   // ── Julio 2026: 380 M (97,4 %) ──
-  { code: "HAP-2026-011", name: "Mapa de experiencia del pasajero", client: "Aerolínea Demo", country: "MX", saleDate: "2026-07-06", currency: "USD", sale: "60000", costs: "10000", refRate: "4000", expectedInvoices: 1, assignments: [["sebastian", "1"], ["laura", "0.5"]],
+  { code: "HAP-2026-011", client: "Aerolínea Demo", country: "MX", saleDate: "2026-07-06", currency: "USD", sale: "60000", costs: "10000", refRate: "4000", expectedInvoices: 1, assignments: [["sebastian", "1"], ["laura", "0.5"]],
     invoices: [{ number: "FE-1072", issueDate: "2026-07-30", amount: "60000", collections: [{ date: "2026-09-10", amount: "30000", fx: "3950" }] }] },
-  { code: "HAP-2026-012", name: "Auditoría de servicio al paciente", client: "Salud Demo IPS", country: "CO", saleDate: "2026-07-21", currency: "COP", sale: "140000000", costs: "20000000", expectedInvoices: 2, assignments: [["nicholle", "1"]],
+  { code: "HAP-2026-012", client: "Salud Demo IPS", country: "CO", saleDate: "2026-07-21", currency: "COP", sale: "140000000", costs: "20000000", expectedInvoices: 2, assignments: [["nicholle", "1"]],
     invoices: [{ amount: "70000000" }, { amount: "70000000" }] },
 
   // ── Agosto 2026: 450 M (115 %) ──
-  { code: "HAP-2026-013", name: "Diseño de servicios ciudadanos", client: "Alcaldía Demo", country: "CO", saleDate: "2026-08-11", currency: "COP", sale: "450000000", costs: "90000000", expectedInvoices: 3, assignments: [["andres", "1"], ["camila", "0.7"], ["nicholle", "1"], ["laura", "0.5"]],
+  { code: "HAP-2026-013", client: "Alcaldía Demo", country: "CO", saleDate: "2026-08-11", currency: "COP", sale: "450000000", costs: "90000000", expectedInvoices: 3, assignments: [["andres", "1"], ["camila", "0.7"], ["nicholle", "1"], ["laura", "0.5"]],
     invoices: [{ number: "FE-1083", issueDate: "2026-09-01", amount: "180000000" }] },
 
   // ── Septiembre 2026: 410 M (105 %) ──
-  { code: "HAP-2026-014", name: "Estrategia omnicanal", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2026-09-02", currency: "COP", sale: "300000000", costs: "40000000", expectedInvoices: 2, assignments: [["laura", "1"], ["sebastian", "0.5"]], invoices: [] },
-  { code: "HAP-2026-015", name: "Entrenamiento de equipos de servicio", client: "Retail Demo S.A.", country: "CO", saleDate: "2026-09-24", currency: "COP", sale: "110000000", costs: "0", expectedInvoices: 1, assignments: [["camila", "1"]], invoices: [] },
+  { code: "HAP-2026-014", client: "Banco Ejemplo S.A.", country: "CO", saleDate: "2026-09-02", currency: "COP", sale: "300000000", costs: "40000000", expectedInvoices: 2, assignments: [["laura", "1"], ["sebastian", "0.5"]], invoices: [] },
+  { code: "HAP-2026-015", client: "Retail Demo S.A.", country: "CO", saleDate: "2026-09-24", currency: "COP", sale: "110000000", costs: "0", expectedInvoices: 1, assignments: [["camila", "1"]], invoices: [] },
 
   // ── Octubre 2026 (mes en curso, sin validar) ──
-  { code: "HAP-2026-016", name: "Estrategia de datos con enfoque legal", client: "Fintech Demo S.A.S.", country: "CO", saleDate: "2026-10-02", currency: "COP", sale: "95000000", costs: "5000000", expectedInvoices: 1, assignments: [["andres", "1"]], invoices: [] },
+  { code: "HAP-2026-016", client: "Fintech Demo S.A.S.", country: "CO", saleDate: "2026-10-02", currency: "COP", sale: "95000000", costs: "5000000", expectedInvoices: 1, assignments: [["andres", "1"]], invoices: [] },
 ];
 
 
@@ -220,7 +219,7 @@ async function main() {
       return { id: newId(), collaboratorId: collab[key], baseRate: rate, effectiveRate: null, effectiveRateRule: null, removedAt: null, removedReason: null, versions: [{ baseRate: rate, reason: "Asignación inicial en la venta", createdAt: t, createdById: adminId }], createdAt: t };
     });
     const project: ProjectDoc = {
-      id: p.code, code: p.code, name: p.name, client: p.client, country: p.country, saleDate: p.saleDate as DateOnly, saleMonth: monthKey(p.saleDate as DateOnly),
+      id: p.code, code: p.code, client: p.client, country: p.country, saleDate: p.saleDate as DateOnly, saleMonth: monthKey(p.saleDate as DateOnly),
       currency: p.currency, saleAmount: D(p.sale).toFixed(), providerCosts: D(p.costs).toFixed(), netBase: netBase.toFixed(), saleReferenceRate: D(refRate).toFixed(),
       saleAmountCOP: D(p.sale).mul(refRate).toFixed(), expectedInvoices: p.expectedInvoices, notes: null, assignments,
       collaboratorIds: assignments.map((a) => a.collaboratorId), everAssignedIds: [...new Set(assignments.map((a) => a.collaboratorId))],

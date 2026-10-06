@@ -60,12 +60,12 @@ export async function renderAdministrativeXlsx(data: ReportData): Promise<Buffer
 
   // ── Detalle ──
   const wd = wb.addWorksheet("Detalle", { views: [{ state: "frozen", ySplit: 1 }] });
-  header(wd.addRow(["Colaborador", "Tipo", "Mes de venta", "Código", "Proyecto", "Cliente", "Base neta del proyecto", "Factura", "Fecha factura", "Fecha recaudo", "Moneda", "Valor recaudado", "TRM", "Base neta del recaudo (COP)", "% base", "% efectivo", "Comisión (COP)", "Extemporáneo"]));
+  header(wd.addRow(["Colaborador", "Tipo", "Mes de venta", "Código", "Cliente", "Base neta del proyecto", "Factura", "Fecha factura", "Fecha recaudo", "Moneda", "Valor recaudado", "TRM", "Base neta del recaudo (COP)", "% base", "% efectivo", "Comisión (COP)", "Extemporáneo"]));
   for (const c of data.collaborators) {
     for (const l of c.lines) {
       const sn = l.snapshot;
       wd.addRow([
-        sn.collaboratorName, l.type === "ADJUSTMENT" ? "Ajuste" : "Recaudo", sn.saleMonth, sn.projectCode, sn.projectName, sn.client, n(sn.projectNetBase), sn.invoiceNumber ?? "",
+        sn.collaboratorName, l.type === "ADJUSTMENT" ? "Ajuste" : "Recaudo", sn.saleMonth, sn.projectCode, sn.client, n(sn.projectNetBase), sn.invoiceNumber ?? "",
         sn.invoiceDate ?? "", sn.collectionDate ?? "", sn.currency, n(sn.amountReceived), sn.currency === "COP" ? null : n(sn.fxRate), n(l.netBaseCOP), n(l.baseRate), n(l.effectiveRate), n(l.commissionCOP), sn.isLate ? "Sí" : "",
       ]);
     }

@@ -43,7 +43,7 @@ async function fresh() {
   ids.ana = idOf(await person("Ana", "a@t.co", "GENERAL"));
   ids.nic = idOf(await person("Nicholle Torres", "n@t.co", "GAMIFICATION"));
   idOf(await saveProjectAction(null, {
-    code: "S-001", name: "Proyecto S", client: "Cliente S", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "468000000", providerCosts: "0",
+    code: "S-001", client: "Cliente S", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "468000000", providerCosts: "0",
     expectedInvoices: "2", notes: "", assignments: [{ collaboratorId: ids.ana, ratePercent: "1" }, { collaboratorId: ids.nic, ratePercent: "1" }],
   } as Parameters<typeof saveProjectAction>[1]));
   ids.invoice = idOf(await saveInvoiceAction(null, { projectId: "S-001", number: "FE-S1", status: "ISSUED", issueDate: "2026-02-01", dueDate: "", amountPreTax: "100000000", netBaseExplicit: "", notes: "" } as Parameters<typeof saveInvoiceAction>[1]));
@@ -67,8 +67,8 @@ suite("Fase D: validación de meses, liquidaciones y pagos en Firestore", () => 
     });
 
     it("con exactamente $390M la meta se alcanza (inclusivo) y cuenta TODAS las ventas del mes", async () => {
-      idOf(await saveProjectAction(null, { code: "T-2", name: "Dos", client: "Cliente", country: "CO", saleDate: "2026-02-03", currency: "COP", saleAmount: "200000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ids.nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
-      idOf(await saveProjectAction(null, { code: "T-3", name: "Tres", client: "Cliente", country: "CO", saleDate: "2026-02-05", currency: "COP", saleAmount: "190000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [] } as Parameters<typeof saveProjectAction>[1]));
+      idOf(await saveProjectAction(null, { code: "T-2", client: "Cliente", country: "CO", saleDate: "2026-02-03", currency: "COP", saleAmount: "200000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ids.nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
+      idOf(await saveProjectAction(null, { code: "T-3", client: "Cliente", country: "CO", saleDate: "2026-02-05", currency: "COP", saleAmount: "190000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [] } as Parameters<typeof saveProjectAction>[1]));
       const r = await validate("2026-02", "2026-04-01");
       expect(r, JSON.stringify(r)).toMatchObject({ sales: "390000000", reached: true });
       expect(r.assignments[0].effectiveRate).toBe("0.01");
@@ -97,7 +97,7 @@ suite("Fase D: validación de meses, liquidaciones y pagos en Firestore", () => 
       await approveSettlement(OCT, U, []);
       await expect(runTx((tx) => reopenMonth(tx, "2026-01", "Intento tras liquidar", U))).rejects.toThrow(/liquidadas/);
       // un mes sin comisiones propias, pero cubierto por el período de una liquidación aprobada
-      idOf(await saveProjectAction(null, { code: "E-1", name: "Otro", client: "Cliente", country: "CO", saleDate: "2026-03-03", currency: "COP", saleAmount: "1000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ids.ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
+      idOf(await saveProjectAction(null, { code: "E-1", client: "Cliente", country: "CO", saleDate: "2026-03-03", currency: "COP", saleAmount: "1000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ids.ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
       await validate("2026-03", "2026-10-06");
       await expect(runTx((tx) => reopenMonth(tx, "2026-03", "Intento con liquidación aprobada", U))).rejects.toThrow(/ya está aprobada/);
     });
@@ -152,7 +152,7 @@ suite("Fase D: validación de meses, liquidaciones y pagos en Firestore", () => 
       expect((await saveCollectionAction(ids.collection, col1)).ok).toBe(false);
       expect((await voidCollectionAction({ id: ids.collection, reason: "Intento sobre liquidado" })).ok).toBe(false);
       expect((await saveInvoiceAction(ids.invoice, { projectId: "S-001", number: "FE-S1", status: "ISSUED", issueDate: "2026-02-01", dueDate: "", amountPreTax: "110000000", netBaseExplicit: "", notes: "" } as Parameters<typeof saveInvoiceAction>[1])).ok).toBe(false);
-      const r = await saveProjectAction("S-001", { code: "S-001", name: "Proyecto S", client: "Cliente S", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "2", notes: "", assignments: [{ collaboratorId: ids.ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1], "Retiro de Nicholle del proyecto");
+      const r = await saveProjectAction("S-001", { code: "S-001", client: "Cliente S", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "2", notes: "", assignments: [{ collaboratorId: ids.ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1], "Retiro de Nicholle del proyecto");
       expect(r.ok).toBe(false);
     });
 

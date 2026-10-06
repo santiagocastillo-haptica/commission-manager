@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 /** Paso 1: elegir el proyecto. Paso 2: el formulario de factura (en la moneda de ese proyecto). */
-export function NewInvoiceButton({ projects }: { projects: (InvoiceProjectRef & { name: string })[] }) {
+export function NewInvoiceButton({ projects }: { projects: (InvoiceProjectRef & { client: string })[] }) {
   const [pickOpen, setPickOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [projectId, setProjectId] = useState("");
@@ -27,7 +27,7 @@ export function NewInvoiceButton({ projects }: { projects: (InvoiceProjectRef & 
             <DialogDescription>Solo se listan proyectos con valor pendiente de facturar.</DialogDescription>
           </DialogHeader>
           <Field label="Proyecto" htmlFor="pick-project">
-            <SimpleSelect id="pick-project" value={projectId} onChange={setProjectId} placeholder="Selecciona un proyecto" options={projects.map((p) => ({ value: p.id, label: `${p.code} · ${p.name}` }))} />
+            <SimpleSelect id="pick-project" value={projectId} onChange={setProjectId} placeholder="Selecciona un proyecto" options={projects.map((p) => ({ value: p.id, label: `${p.code} · ${p.client}` }))} />
           </Field>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPickOpen(false)}>Cancelar</Button>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COUNTRY_CODES } from "@/domain/countries";
 import { isDateOnly } from "@/domain/dates";
 import { D } from "@/domain/money";
 
@@ -8,7 +9,7 @@ import { D } from "@/domain/money";
  */
 
 export const currencyEnum = z.enum(["COP", "USD", "CLP", "MXN"], { error: "Selecciona una moneda." });
-export const countryEnum = z.enum(["CO", "CL", "MX"], { error: "Selecciona un país." });
+export const countryEnum = z.enum(COUNTRY_CODES, { error: "Selecciona un país." });
 
 /** Comparaciones tolerantes: si el texto no es un número, la regla de formato ya reporta el error y esta no debe lanzar. */
 const safe = (v: string, test: (d: ReturnType<typeof D>) => boolean) => {
@@ -71,7 +72,6 @@ export const assignmentSchema = z.object({
 export const projectSchema = z
   .object({
     code: requiredText("El código", 3, 40).regex(/^[A-Za-z0-9._-]+$/, "Usa solo letras, números, punto, guion o guion bajo."),
-    name: requiredText("El nombre del proyecto", 3, 200),
     client: requiredText("El cliente", 2, 200),
     country: countryEnum,
     saleDate: dateString,

@@ -159,7 +159,7 @@ export async function saveProjectAction(
       }
 
       const doc: ProjectDoc = {
-        id: projectId, code: data.code, name: data.name, client: data.client, country: data.country,
+        id: projectId, code: data.code, client: data.client, country: data.country,
         saleDate: data.saleDate, saleMonth, currency: data.currency, saleAmount: D(data.saleAmount).toFixed(), providerCosts: D(data.providerCosts).toFixed(),
         netBase: netBase.toFixed(), saleReferenceRate: refRate.toFixed(), saleAmountCOP: saleAmountCOP.toFixed(), expectedInvoices: Number(data.expectedInvoices),
         notes: data.notes || null, assignments,

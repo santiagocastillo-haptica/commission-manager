@@ -192,7 +192,6 @@ function LinesTable({ c }: { c: CollaboratorView }) {
               <TableRow key={l.key} className={adj ? "bg-warning-soft/60" : undefined}>
                 <TableCell>
                   <Link href={`/proyectos/${l.projectId}`} className="num font-semibold underline-offset-4 hover:underline">{l.projectCode}</Link>
-                  <div className="max-w-[220px] truncate text-xs text-muted-foreground">{l.projectName}</div>
                 </TableCell>
                 <TableCell className="capitalize">{formatMonthShort(l.saleMonth)}</TableCell>
                 <TableCell className="num">{adj ? <Badge variant="warning">Ajuste</Badge> : (l.invoiceNumber ?? "—")}</TableCell>

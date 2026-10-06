@@ -24,7 +24,7 @@ async function setup(currency: "COP" | "USD" = "COP") {
   if (!c.ok) throw new Error(c.error);
   const usd = currency === "USD";
   const p = await saveProjectAction(null, {
-    code: CODE, name: "Proyecto", client: "Cliente", country: "CO", saleDate: "2026-05-10", currency,
+    code: CODE, client: "Cliente", country: "CO", saleDate: "2026-05-10", currency,
     saleAmount: usd ? "1000" : "100000000", providerCosts: usd ? "0" : "10000000", saleReferenceRate: usd ? "4000" : undefined,
     expectedInvoices: "2", notes: "", assignments: [{ collaboratorId: c.data!.id, ratePercent: "1" }],
   } as Parameters<typeof saveProjectAction>[1]);

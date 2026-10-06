@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
+import { COUNTRY_OPTIONS } from "@/domain/countries";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
@@ -34,11 +35,6 @@ export interface MonthContext {
   status: "OPEN" | "VALIDATED" | "REOPENED";
 }
 
-const COUNTRIES = [
-  { value: "CO", label: "Colombia" },
-  { value: "CL", label: "Chile" },
-  { value: "MX", label: "México" },
-];
 const CURRENCY_OPTIONS = ["COP", "USD", "CLP", "MXN"].map((c) => ({ value: c, label: c }));
 
 export function ProjectForm({
@@ -161,14 +157,11 @@ export function ProjectForm({
             <Field label="Fecha de venta" htmlFor="saleDate" error={e.saleDate?.message} required>
               <Input id="saleDate" type="date" {...register("saleDate")} disabled={locked} aria-invalid={!!e.saleDate} />
             </Field>
-            <Field label="Nombre del proyecto" htmlFor="name" error={e.name?.message} required className="sm:col-span-2">
-              <Input id="name" {...register("name")} aria-invalid={!!e.name} />
-            </Field>
             <Field label="Cliente" htmlFor="client" error={e.client?.message} required>
               <Input id="client" {...register("client")} aria-invalid={!!e.client} />
             </Field>
             <Field label="País" htmlFor="country" error={e.country?.message} required>
-              <Controller control={control} name="country" render={({ field }) => <SimpleSelect id="country" value={field.value} onChange={field.onChange} options={COUNTRIES} />} />
+              <Controller control={control} name="country" render={({ field }) => <SimpleSelect id="country" value={field.value} onChange={field.onChange} options={COUNTRY_OPTIONS} />} />
             </Field>
             <Field label="Facturas previstas" htmlFor="expectedInvoices" error={e.expectedInvoices?.message} required hint="Cantidad de facturas que se emitirán en total.">
               <Input id="expectedInvoices" inputMode="numeric" {...register("expectedInvoices")} aria-invalid={!!e.expectedInvoices} className="num" />

@@ -18,7 +18,6 @@ export interface LineSnapshot extends LineDetail {
 export interface ProjectStatusEntry {
   projectId: string;
   code: string;
-  name: string;
   client: string;
   saleMonth: string;
   currency: string;

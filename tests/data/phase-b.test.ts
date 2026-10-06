@@ -20,7 +20,7 @@ const collab = (over: Partial<Parameters<typeof saveCollaboratorAction>[1]> = {}
   fullName: "Ana Pérez", email: "ana@haptica.co", position: "Consultora", status: "ACTIVE" as const, policyId: "GENERAL", joinDate: "", notes: "", ...over,
 });
 const project = (assignments: { collaboratorId: string; ratePercent: string }[], over: Record<string, unknown> = {}) => ({
-  code: "HAP-2026-001", name: "Proyecto Uno", client: "Cliente SA", country: "CO", saleDate: "2026-05-10", currency: "COP",
+  code: "HAP-2026-001", client: "Cliente SA", country: "CO", saleDate: "2026-05-10", currency: "COP",
   saleAmount: "100000000", providerCosts: "10000000", expectedInvoices: "2", notes: "", assignments, ...over,
 }) as Parameters<typeof saveProjectAction>[1];
 
@@ -129,7 +129,7 @@ suite("Fase B: colaboradores, proyectos y configuración en Firestore", () => {
       await saveProjectAction(null, project([]));
       expect((await saveProjectAction("HAP-2026-001", project([], { code: "HAP-2026-999" }))).ok).toBe(false);
       expect((await voidProjectAction({ id: "HAP-2026-001", reason: "Duplicado por error de captura" })).ok).toBe(true);
-      expect((await saveProjectAction("HAP-2026-001", project([], { name: "Otro nombre" }))).ok).toBe(false);
+      expect((await saveProjectAction("HAP-2026-001", project([], { client: "Otro cliente" }))).ok).toBe(false);
       expect((await voidProjectAction({ id: "HAP-2026-001", reason: "Duplicado por error de captura" })).ok).toBe(false);
     });
 
@@ -152,8 +152,19 @@ suite("Fase B: colaboradores, proyectos y configuración en Firestore", () => {
       await ref(C.monthlySales, "2026-05").set(locked);
       expect((await saveProjectAction(null, project([]))).ok).toBe(false); // crear en mes bloqueado
       expect((await saveProjectAction("HAP-2026-002", project([], { code: "HAP-2026-002", saleAmount: "200000000" }))).ok).toBe(false);
-      expect((await saveProjectAction("HAP-2026-002", project([], { code: "HAP-2026-002", name: "Nombre nuevo" }))).ok).toBe(true);
+      expect((await saveProjectAction("HAP-2026-002", project([], { code: "HAP-2026-002", client: "Cliente nuevo" }))).ok).toBe(true);
       expect((await voidProjectAction({ id: "HAP-2026-002", reason: "Mes bloqueado, no debe anular" })).ok).toBe(false);
+    });
+
+    it("acepta todos los países de operación y rechaza los demás; el proyecto no lleva nombre", async () => {
+      let n = 0;
+      for (const country of ["CO", "CL", "MX", "GT", "US", "EC", "PE"]) {
+        const code = `HAP-2026-${String(++n + 100).padStart(3, "0")}`;
+        expect((await saveProjectAction(null, project([], { code, country }))).ok, country).toBe(true);
+        expect(((await ref(C.projects, code).get()).data() as ProjectDoc).country).toBe(country);
+      }
+      expect((await saveProjectAction(null, project([], { code: "HAP-2026-999", country: "AR" }))).ok).toBe(false);
+      expect("name" in ((await ref(C.projects, "HAP-2026-101").get()).data() as object)).toBe(false);
     });
 
     it("moneda extranjera: guarda la TRM de referencia y el equivalente en COP", async () => {

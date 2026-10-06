@@ -46,7 +46,6 @@ export interface SettlementInvoice {
 export interface SettlementProject extends ProjectBase {
   id: string;
   code: string;
-  name: string;
   currency: string;
   saleMonth: string;
   voided: boolean;
@@ -71,7 +70,6 @@ export interface SettlementInput {
 
 export interface LineDetail {
   projectCode: string;
-  projectName: string;
   saleMonth: string;
   projectNetBase: string;
   invoiceNumber: string | null;
@@ -229,7 +227,6 @@ export function calculateSettlement(input: SettlementInput, options: CalculateOp
             isLate: c.date < periodStart,
             detail: {
               projectCode: project.code,
-              projectName: project.name,
               saleMonth: project.saleMonth,
               projectNetBase: D(project.netBase).toFixed(),
               invoiceNumber: inv.number,
@@ -311,7 +308,6 @@ export function calculateSettlement(input: SettlementInput, options: CalculateOp
         isLate: false,
         detail: {
           projectCode: project.code,
-          projectName: project.name,
           saleMonth: project.saleMonth,
           projectNetBase: D(project.netBase).toFixed(),
           invoiceNumber: null,

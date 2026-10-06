@@ -17,7 +17,6 @@ export interface LineView {
   type: "COLLECTION" | "ADJUSTMENT";
   projectId: string;
   projectCode: string;
-  projectName: string;
   saleMonth: string;
   invoiceNumber: string | null;
   collectionDate: DateOnly | null;
@@ -86,7 +85,6 @@ function lineViewFromCalc(l: CalcLine, i: number): LineView {
     type: l.type,
     projectId: l.projectId,
     projectCode: l.detail.projectCode,
-    projectName: l.detail.projectName,
     saleMonth: l.detail.saleMonth,
     invoiceNumber: l.detail.invoiceNumber,
     collectionDate: l.detail.collectionDate,
@@ -130,7 +128,7 @@ export async function getSettlementView(year: number, half: SettlementHalf): Pro
         const mine = lines.filter((l) => l.collaboratorId === cs.collaboratorId).map((l): LineView => {
           const sn = l.snapshot as LineSnapshot;
           return {
-            key: l.id, type: l.type, projectId: l.projectId, projectCode: sn.projectCode, projectName: sn.projectName, saleMonth: sn.saleMonth,
+            key: l.id, type: l.type, projectId: l.projectId, projectCode: sn.projectCode, saleMonth: sn.saleMonth,
             invoiceNumber: sn.invoiceNumber, collectionDate: sn.collectionDate, amountReceived: sn.amountReceived, currency: l.currency, fxRate: D(l.fxRate).toFixed(),
             baseRate: D(l.baseRate).toFixed(), effectiveRate: D(l.effectiveRate).toFixed(), netBaseCOP: D(l.netBaseCOP).toFixed(), commissionCOP: D(l.commissionCOP).toFixed(), isLate: l.isLate,
           };

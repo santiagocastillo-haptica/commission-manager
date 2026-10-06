@@ -45,7 +45,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/factura
       pendingInvoices: Math.max(1, p.expectedInvoices - p.fin.invoiceCount),
     };
   }
-  const invoiceable = projects.filter((p) => D(refs[p.id].remainingToInvoice).gt(0)).map((p) => ({ ...refs[p.id], name: p.name }));
+  const invoiceable = projects.filter((p) => D(refs[p.id].remainingToInvoice).gt(0)).map((p) => ({ ...refs[p.id], client: p.client }));
 
   const issued = allInvoices.filter((i) => i.status === "ISSUED");
   const planned = allInvoices.filter((i) => i.status === "PLANNED");

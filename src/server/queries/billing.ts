@@ -23,7 +23,6 @@ export interface InvoiceRow {
   id: string;
   projectId: string;
   projectCode: string;
-  projectName: string;
   client: string;
   currency: "COP" | "USD" | "CLP" | "MXN";
   number: string | null;
@@ -77,7 +76,7 @@ export async function listInvoices(filters: InvoiceFilters = {}): Promise<Invoic
   if (q) {
     docs = docs.filter((i) => {
       const p = byProject.get(i.projectId)!;
-      return [i.number, p.code, p.name, p.client].some((v) => v?.toLowerCase().includes(q));
+      return [i.number, p.code, p.client].some((v) => v?.toLowerCase().includes(q));
     });
   }
   docs = docs.sort(byIssueDesc).slice(0, 1000);
@@ -93,7 +92,6 @@ export async function listInvoices(filters: InvoiceFilters = {}): Promise<Invoic
       id: i.id,
       projectId: i.projectId,
       projectCode: p.code,
-      projectName: p.name,
       client: p.client,
       currency: i.currency,
       number: i.number,

@@ -23,7 +23,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             Registra ventas, recaudos y ajustes. El sistema calcula, liquida y deja la trazabilidad completa.
           </p>
         </div>
-        <p className="text-xs text-white/40">Uso interno · Colombia · Chile · México</p>
+        <p className="text-xs text-white/40">Uso interno · Háptica</p>
       </section>
       <section className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
