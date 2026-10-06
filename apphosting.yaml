@@ -1,0 +1,19 @@
+# Firebase App Hosting (Next.js sobre Cloud Run). Documentación: docs/04-despliegue.md
+runConfig:
+  cpu: 1
+  memoryMiB: 1024
+  minInstances: 0     # escala a cero cuando no hay uso (sin costo fijo)
+  maxInstances: 3
+  concurrency: 40
+
+env:
+  # Secretos guardados en Secret Manager (se crean con `firebase apphosting:secrets:set`).
+  - variable: SESSION_SECRET
+    secret: session-secret
+    availability: [RUNTIME]
+  # Token de la página /setup (solo para crear el primer administrador; la página se cierra sola después).
+  # (si lo retiras después de crear el administrador, quita también el secreto de `apphosting.yaml`)
+  - variable: SETUP_TOKEN
+    secret: setup-token
+    availability: [RUNTIME]
+  # FIRESTORE_EMULATOR_HOST NO se define aquí: en producción se usa Firestore real con la cuenta de servicio del backend.

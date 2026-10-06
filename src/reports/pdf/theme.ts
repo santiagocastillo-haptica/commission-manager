@@ -1,0 +1,46 @@
+import { StyleSheet } from "@react-pdf/renderer";
+
+/** Colores del design system de Háptica. */
+export const C = {
+  petroleo: "#006663",
+  profundo: "#003237",
+  naranja: "#FA4616",
+  menta100: "#E0F5F1",
+  gris100: "#F4F4F2",
+  gris200: "#E6E6E3",
+  gris400: "#B7BCBC",
+  gris600: "#6E7677",
+  texto: "#0D1B1D",
+  advertencia: "#FDF1D3",
+};
+
+export const styles = StyleSheet.create({
+  page: { paddingTop: 28, paddingBottom: 46, paddingHorizontal: 28, fontFamily: "Helvetica", fontSize: 8, color: C.texto },
+  wordmark: { fontSize: 15, letterSpacing: 6, color: C.profundo, fontFamily: "Helvetica" },
+  wordmarkSub: { fontSize: 6.5, letterSpacing: 2, color: C.gris600, marginTop: 5, fontFamily: "Helvetica-Bold" },
+  rail: { width: 40, height: 2.5, backgroundColor: C.naranja, marginTop: 8, marginBottom: 8 },
+  title: { fontSize: 19, fontFamily: "Helvetica-Bold", color: C.profundo },
+  eyebrow: { fontSize: 6.5, letterSpacing: 1.5, color: C.gris600, fontFamily: "Helvetica-Bold", textTransform: "uppercase" },
+  h2: { fontSize: 10.5, fontFamily: "Helvetica-Bold", color: C.profundo, marginTop: 14, marginBottom: 6 },
+  muted: { color: C.gris600 },
+  bold: { fontFamily: "Helvetica-Bold" },
+  metaGrid: { flexDirection: "row", marginTop: 10, gap: 0 },
+  metaCell: { flexGrow: 1, paddingRight: 12 },
+  metaValue: { fontSize: 10, fontFamily: "Helvetica-Bold", marginTop: 2 },
+  summaryRow: { flexDirection: "row", gap: 8, marginTop: 4 },
+  summaryBox: { flexGrow: 1, borderWidth: 0.75, borderColor: C.gris200, padding: 8 },
+  summaryBoxStrong: { flexGrow: 1, backgroundColor: C.profundo, padding: 8 },
+  summaryLabel: { fontSize: 6.5, letterSpacing: 1.2, textTransform: "uppercase", fontFamily: "Helvetica-Bold", color: C.gris600 },
+  summaryValue: { fontSize: 14, fontFamily: "Helvetica-Bold", marginTop: 4, color: C.profundo },
+  table: { marginTop: 2 },
+  th: { flexDirection: "row", backgroundColor: C.profundo, color: "#FFFFFF", fontFamily: "Helvetica-Bold", fontSize: 6.8, paddingVertical: 4, paddingHorizontal: 3 },
+  tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: C.gris200, paddingVertical: 3.5, paddingHorizontal: 3 },
+  trAdj: { backgroundColor: C.advertencia },
+  subtotal: { flexDirection: "row", backgroundColor: C.menta100, paddingVertical: 3.5, paddingHorizontal: 3, fontFamily: "Helvetica-Bold" },
+  total: { flexDirection: "row", backgroundColor: C.profundo, color: "#FFFFFF", paddingVertical: 5, paddingHorizontal: 3, fontFamily: "Helvetica-Bold" },
+  right: { textAlign: "right" },
+  note: { fontSize: 7, color: C.gris600, marginTop: 5, lineHeight: 1.4 },
+  footer: { position: "absolute", bottom: 18, left: 28, right: 28, flexDirection: "row", justifyContent: "space-between", fontSize: 6.8, color: C.gris600, borderTopWidth: 0.5, borderTopColor: C.gris200, paddingTop: 5 },
+  sigRow: { flexDirection: "row", gap: 28, marginTop: 38 },
+  sig: { flexGrow: 1, borderTopWidth: 0.75, borderTopColor: C.texto, paddingTop: 4 },
+});
