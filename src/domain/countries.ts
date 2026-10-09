@@ -7,6 +7,7 @@ export const COUNTRIES = [
   { code: "US", label: "Estados Unidos" },
   { code: "EC", label: "Ecuador" },
   { code: "PE", label: "Perú" },
+  { code: "AR", label: "Argentina" },
 ] as const;
 
 export type CountryCode = (typeof COUNTRIES)[number]["code"];

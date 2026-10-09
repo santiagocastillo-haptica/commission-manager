@@ -158,12 +158,12 @@ suite("Fase B: colaboradores, proyectos y configuración en Firestore", () => {
 
     it("acepta todos los países de operación y rechaza los demás; el proyecto no lleva nombre", async () => {
       let n = 0;
-      for (const country of ["CO", "CL", "MX", "GT", "US", "EC", "PE"]) {
+      for (const country of ["CO", "CL", "MX", "GT", "US", "EC", "PE", "AR"]) {
         const code = `HAP-2026-${String(++n + 100).padStart(3, "0")}`;
         expect((await saveProjectAction(null, project([], { code, country }))).ok, country).toBe(true);
         expect(((await ref(C.projects, code).get()).data() as ProjectDoc).country).toBe(country);
       }
-      expect((await saveProjectAction(null, project([], { code: "HAP-2026-999", country: "AR" }))).ok).toBe(false);
+      expect((await saveProjectAction(null, project([], { code: "HAP-2026-999", country: "BR" }))).ok).toBe(false);
       expect("name" in ((await ref(C.projects, "HAP-2026-101").get()).data() as object)).toBe(false);
     });
 

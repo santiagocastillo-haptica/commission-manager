@@ -71,7 +71,7 @@ export const assignmentSchema = z.object({
 
 export const projectSchema = z
   .object({
-    code: requiredText("El código", 3, 40).regex(/^[A-Za-z0-9._-]+$/, "Usa solo letras, números, punto, guion o guion bajo."),
+    code: requiredText("El código", 3, 40).regex(/^[A-Za-z0-9._&-]+$/, "Usa solo letras, números, punto, guion, guion bajo o &."),
     client: requiredText("El cliente", 2, 200),
     country: countryEnum,
     saleDate: dateString,

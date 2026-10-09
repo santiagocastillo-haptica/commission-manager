@@ -75,7 +75,7 @@ const lines = [
   ["h", "Qué celdas llenar"],
   ["kv", "Todas las hojas menos esta", "Llena desde la fila 3 hacia abajo (o reemplaza la fila 2). Las columnas con * son obligatorias. Pasa el cursor sobre el encabezado para ver la ayuda de cada columna."],
   ["kv", "Proyectos", "Una fila por proyecto vendido. El código debe ser único (p. ej. HAP-2024-001). No lleva nombre: el proyecto se identifica por su código y su cliente."],
-  ["kv", "Países", "CO Colombia, CL Chile, MX México, GT Guatemala, US Estados Unidos, EC Ecuador, PE Perú. El país no define la moneda: Guatemala, Ecuador, Perú y Estados Unidos se registran en USD o COP."],
+  ["kv", "Países", "CO Colombia, CL Chile, MX México, GT Guatemala, US Estados Unidos, EC Ecuador, PE Perú, AR Argentina. El país no define la moneda: Guatemala, Ecuador, Perú, Argentina y Estados Unidos se registran en USD o COP."],
   ["kv", "Asignaciones", "Una fila por colaborador y proyecto, con su porcentaje base (1 = 1 %, 0.5 = medio punto). Máximo 1 por persona y proyecto. Se identifica al colaborador por su CORREO, escrito igual que en la aplicación."],
   ["kv", "Facturas", "Una fila por factura. Si aún no se emite, déjala como PREVISTA (sin número ni fechas). El número de factura no se repite dentro de un proyecto."],
   ["kv", "Recaudos", "Una fila por pago recibido de un cliente (totales o parciales), con su fecha. Si la factura es en otra moneda, la TRM del día del recaudo es obligatoria."],
@@ -140,7 +140,7 @@ dataSheet(
   [
     { header: "codigo*", key: "codigo", width: 16, required: true, hint: "Único. Letras, números, punto, guion. Ej. HAP-2024-001", validation: { type: "textLength", operator: "between", formulae: [3, 40], error: "El código debe tener entre 3 y 40 caracteres." } },
     { header: "cliente*", key: "cliente", width: 26, required: true },
-    { header: "pais*", key: "pais", width: 8, required: true, hint: "CO Colombia · CL Chile · MX México · GT Guatemala · US Estados Unidos · EC Ecuador · PE Perú", validation: list(["CO", "CL", "MX", "GT", "US", "EC", "PE"], "Elige un país de la lista (CO, CL, MX, GT, US, EC, PE).") },
+    { header: "pais*", key: "pais", width: 8, required: true, hint: "CO Colombia · CL Chile · MX México · GT Guatemala · US Estados Unidos · EC Ecuador · PE Perú · AR Argentina", validation: list(["CO", "CL", "MX", "GT", "US", "EC", "PE", "AR"], "Elige un país de la lista (CO, CL, MX, GT, US, EC, PE, AR).") },
     { header: "fecha_venta*", key: "fecha_venta", width: 14, required: true, hint: "AAAA-MM-DD. Define el mes de venta (desde 2024-09-01).", format: FMT_DATE, validation: date },
     { header: "moneda*", key: "moneda", width: 9, required: true, hint: "COP, USD, CLP o MXN", validation: list(["COP", "USD", "CLP", "MXN"], "Elige COP, USD, CLP o MXN.") },
     { header: "valor_venta_sin_iva*", key: "valor", width: 20, required: true, hint: "Antes de IVA, en la moneda original.", format: FMT_MONEY, validation: positive },

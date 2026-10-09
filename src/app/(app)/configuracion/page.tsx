@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth";
 import { listAudit, listGoals, listMonths, listPolicyTiers, listRates } from "@/server/queries/settings";
 import { GoalDialog, MonthActions, MonthAdjustmentDialog, RateDialog } from "./settings-dialogs";
+import { HistoryImport } from "./history-import";
 import { DeleteTierSetButton, TierSetDialog } from "./tier-dialogs";
 
 export const metadata: Metadata = { title: "Configuración" };
@@ -20,6 +21,7 @@ const TABS = [
   { id: "tasas", label: "Tasas de cambio" },
   { id: "politicas", label: "Políticas de comisión" },
   { id: "auditoria", label: "Auditoría" },
+  { id: "importar", label: "Importar historia" },
 ] as const;
 
 export default async function SettingsPage({ searchParams }: PageProps<"/configuracion">) {
@@ -51,6 +53,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/configu
       {tab === "tasas" && <RatesTab />}
       {tab === "politicas" && <PoliciesTab />}
       {tab === "auditoria" && <AuditTab />}
+      {tab === "importar" && <HistoryImport />}
     </>
   );
 }

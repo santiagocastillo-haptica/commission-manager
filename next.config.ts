@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   // Se cargan como paquetes de Node (no se empaquetan) para generar PDF y Excel en el servidor.
   serverExternalPackages: ["@react-pdf/renderer", "exceljs", "jszip"],
   poweredByHeader: false,
+  // La importación de la plantilla de historia sube un Excel (por defecto el límite es 1 MB).
+  experimental: { serverActions: { bodySizeLimit: "10mb" } },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
