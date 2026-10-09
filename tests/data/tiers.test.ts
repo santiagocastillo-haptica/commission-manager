@@ -47,6 +47,17 @@ suite("escala de gamificación: historia y edición", () => {
     expect((await deleteTierSetAction({ policyCode: "GAMIFICATION", effectiveFrom: "2030-01-01" })).ok).toBe(false); // no existe
   });
 
+  it("mueve la fecha de inicio de una escala (editar) con sus validaciones", async () => {
+    // por defecto: una sola escala desde 2025-10-01
+    expect((await saveTierSetAction({ policyCode: "GAMIFICATION", effectiveFrom: "2025-12-01", movesFrom: "2025-10-01", tiers: SCALE })).ok).toBe(true);
+    expect(await starts()).toEqual(["2025-12-01"]);
+    // mover a una fecha que ya existe, o mover una escala que no existe, se rechaza
+    expect((await saveTierSetAction({ policyCode: "GAMIFICATION", effectiveFrom: "2026-03-01", tiers: SCALE })).ok).toBe(true);
+    expect((await saveTierSetAction({ policyCode: "GAMIFICATION", effectiveFrom: "2026-03-01", movesFrom: "2025-12-01", tiers: SCALE })).ok).toBe(false);
+    expect((await saveTierSetAction({ policyCode: "GAMIFICATION", effectiveFrom: "2026-05-01", movesFrom: "2030-01-01", tiers: SCALE })).ok).toBe(false);
+    expect(await starts()).toEqual(["2025-12-01", "2026-03-01"]);
+  });
+
   it("no permite cambiar una escala que ya se usó para validar un mes", async () => {
     const nic = idOf(await saveCollaboratorAction(null, { fullName: "Nicholle", email: "n@t.co", position: "Analista", status: "ACTIVE", policyId: "GAMIFICATION", joinDate: "", notes: "" }));
     idOf(await saveProjectAction(null, { code: "G-001", client: "Cliente", country: "CO", saleDate: "2025-11-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: nic, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));

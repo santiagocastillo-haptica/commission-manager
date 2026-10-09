@@ -131,6 +131,8 @@ export async function reopenMonthAction(input: { yearMonth: string; reason: stri
 const tierSetSchema = z.object({
   policyCode: z.literal("GAMIFICATION"),
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-01$/, "La escala rige desde el primer día de un mes."),
+  /** Al editar una escala existente cambiando su fecha de inicio: la fecha anterior (se mueve la escala). */
+  movesFrom: z.string().regex(/^\d{4}-\d{2}-01$/).optional(),
   tiers: z
     .array(
       z.object({
@@ -171,16 +173,24 @@ export async function saveTierSetAction(input: z.input<typeof tierSetSchema>): P
       if (!snap.exists) throw new DomainError("La política no existe.");
       const policy = snap.data() as PolicyDoc;
       const starts = [...new Set(policy.tiers.map((t) => t.effectiveFrom))];
-      const w = affectedMonths(starts, data.effectiveFrom);
+      const moves = data.movesFrom && data.movesFrom !== data.effectiveFrom ? data.movesFrom : null;
+      if (moves) {
+        if (!starts.includes(moves as never)) throw new DomainError("La escala que intentas mover no existe.");
+        if (starts.includes(data.effectiveFrom as never)) throw new DomainError("Ya existe una escala con esa fecha de inicio.");
+        // Los meses que dejaba de cubrir la escala anterior también deben estar sin validar.
+        const old = affectedMonths(starts, moves);
+        await assertNoValidatedMonths(tx, old.first, old.before, "mover esta escala");
+      }
+      const w = affectedMonths(moves ? starts.filter((x) => x !== moves) : starts, data.effectiveFrom);
       await assertNoValidatedMonths(tx, w.first, w.before, "modificar esta escala");
       const tiers = [
-        ...policy.tiers.filter((t) => t.effectiveFrom !== data.effectiveFrom),
+        ...policy.tiers.filter((t) => t.effectiveFrom !== data.effectiveFrom && t.effectiveFrom !== moves),
         ...data.tiers.map((t) => ({ min: D(t.min).toFixed(), factor: D(t.factor).toFixed(), effectiveFrom: data.effectiveFrom as PolicyDoc["tiers"][number]["effectiveFrom"] })),
       ];
       tx.set(ref(C.policies, data.policyCode), { ...policy, tiers });
       audit(tx, {
-        entity: "Policy", entityId: data.policyCode, action: starts.includes(data.effectiveFrom) ? "UPDATE" : "CREATE",
-        summary: `Escala de gamificación vigente desde ${data.effectiveFrom}: ${data.tiers.map((t) => `${D(t.min).mul(100).toFixed()} % → ${t.factor}×`).join(", ")}`,
+        entity: "Policy", entityId: data.policyCode, action: starts.includes(data.effectiveFrom) || moves ? "UPDATE" : "CREATE",
+        summary: `Escala de gamificación vigente desde ${data.effectiveFrom}${moves ? ` (antes desde ${moves})` : ""}: ${data.tiers.map((t) => `${D(t.min).mul(100).toFixed()} % → ${t.factor}×`).join(", ")}`,
         before: policy.tiers, after: tiers, userId: session.userId,
       });
     });

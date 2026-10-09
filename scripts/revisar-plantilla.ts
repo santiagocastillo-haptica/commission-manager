@@ -21,7 +21,7 @@ async function main() {
   const sorted = sortIssues(issues);
 
   const out = new ExcelJS.Workbook();
-  const FILL: Record<HistoryIssue["severity"], string> = { Bloqueante: "FFF8D7DA", Decisión: "FFFFF3CD", Menor: "FFE2F0D9", Info: "FFDDEBF7" };
+  const FILL: Record<HistoryIssue["severity"], string> = { Bloqueante: "FFF8D7DA", Decisión: "FFFFF3CD", Menor: "FFE2F0D9", Info: "FFDDEBF7", Aceptado: "FFEDEDED" };
   const header = (ws: ExcelJS.Worksheet) =>
     ws.getRow(1).eachCell((c) => {
       c.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };

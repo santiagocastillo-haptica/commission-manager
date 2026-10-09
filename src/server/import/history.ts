@@ -70,7 +70,8 @@ export interface HistoryPlan {
   emails: string[];
 }
 
-export type IssueSeverity = "Bloqueante" | "Decisión" | "Menor" | "Info";
+/** «Aceptado»: casos que el negocio ya decidió (se muestran aparte y no hacen ruido). */
+export type IssueSeverity = "Bloqueante" | "Decisión" | "Menor" | "Info" | "Aceptado";
 export interface HistoryIssue {
   severity: IssueSeverity;
   type: string;
@@ -201,7 +202,7 @@ export function parseHistoryWorkbook(wb: ExcelJS.Workbook, today: string = today
     if (!(sale > 0)) add("Bloqueante", "Valor de venta inválido", "Proyectos", r._row, code, `Valor «${str(r.valor_venta_sin_iva)}».`, "Debe ser un número mayor que cero.");
     let costs = num(r.costos_proveedores_sin_iva);
     if (Number.isNaN(costs)) {
-      add("Menor", "Falta costos de proveedores", "Proyectos", r._row, code, "Vacío.", "Se toma como 0.");
+      add("Aceptado", "Falta costos de proveedores", "Proyectos", r._row, code, "Vacío.", "Se toma como 0.");
       costs = 0;
     } else if (costs > sale) add("Bloqueante", "Costos superan la venta", "Proyectos", r._row, code, `Costos ${costs} > venta ${sale}.`, "La base comisionable no puede ser negativa.");
     const rate = num(r.trm_venta);
@@ -219,7 +220,7 @@ export function parseHistoryWorkbook(wb: ExcelJS.Workbook, today: string = today
   for (const a of sA?.rows ?? []) {
     const raw = str(a.codigo_proyecto);
     if (!str(a.correo_colaborador) && !str(a.porcentaje)) {
-      add("Decisión", "Proyecto sin colaborador", "Asignaciones", a._row, raw, "Fila con solo el código, sin correo ni porcentaje.", "Se importa «sin comisión».");
+      add("Aceptado", "Proyecto sin colaborador", "Asignaciones", a._row, raw, "Fila con solo el código, sin correo ni porcentaje.", "Se importa «sin comisión».");
       continue;
     }
     const code = resolve(raw);
@@ -362,11 +363,11 @@ export function parseHistoryWorkbook(wb: ExcelJS.Workbook, today: string = today
       add("Decisión", "Facturado supera la venta", "Proyectos", p.row, p.code, `Venta ${p.sale} · facturado ${invoiced.toFixed()} (diferencia ${invoiced.minus(sale).toFixed(2)}).`, "Sube el valor de venta al facturado, o corrige la factura: la aplicación no permite facturar más que la venta.");
     }
     if (p.expectedInvoices < p.invoices.length) {
-      if (p.expectedInvoices === 0) add("Menor", "Falta facturas_previstas", "Proyectos", p.row, p.code, "Columna obligatoria vacía.", `Se usará la cantidad de facturas (${p.invoices.length || 1}).`);
+      if (p.expectedInvoices === 0) add("Aceptado", "Falta facturas_previstas", "Proyectos", p.row, p.code, "Columna obligatoria vacía.", `Se usará la cantidad de facturas (${p.invoices.length || 1}).`);
       p.expectedInvoices = Math.max(1, p.invoices.length);
     }
     if (p.expectedInvoices === 0) p.expectedInvoices = Math.max(1, p.invoices.length);
-    if (p.assignments.length === 0) add("Menor", "Proyecto sin asignaciones", "Proyectos", p.row, p.code, "No tiene colaboradores.", "Se importará «sin comisión».");
+    if (p.assignments.length === 0) add("Aceptado", "Proyecto sin asignaciones", "Proyectos", p.row, p.code, "No tiene colaboradores.", "Se importará «sin comisión».");
     for (const i of p.invoices) {
       const total = i.collections.reduce((acc, c) => acc.plus(c.amount), D(0));
       if (total.gt(i.amount) && !i.collections.some((c) => c.isOverpayment)) add("Bloqueante", "Recaudo supera la factura", "Facturas", i.row, p.code, `Factura ${i.number}: recaudado ${total.toFixed()} > ${i.amount}.`, "Corrige el valor o marca el excedente.");
@@ -390,6 +391,6 @@ export function parseHistoryWorkbook(wb: ExcelJS.Workbook, today: string = today
   return { plan: { projects: [...projects.values()], payments, emails: [...emails].sort() }, issues };
 }
 
-export const SEVERITY_ORDER: Record<IssueSeverity, number> = { Bloqueante: 0, Decisión: 1, Menor: 2, Info: 3 };
+export const SEVERITY_ORDER: Record<IssueSeverity, number> = { Bloqueante: 0, Decisión: 1, Menor: 2, Info: 3, Aceptado: 4 };
 export const sortIssues = (issues: HistoryIssue[]) =>
   [...issues].sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.type.localeCompare(b.type) || String(a.row).localeCompare(String(b.row), undefined, { numeric: true }));

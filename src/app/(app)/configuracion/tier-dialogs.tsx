@@ -55,6 +55,7 @@ export function TierSetDialog({
     const res = await saveTierSetAction({
       policyCode: "GAMIFICATION",
       effectiveFrom: `${month}-01`,
+      ...(initial && initial.effectiveFrom !== `${month}-01` ? { movesFrom: initial.effectiveFrom } : {}),
       tiers: rows.map((r) => ({ min: D(r.min).div(100).toFixed(), factor: D(r.factor).toFixed() })),
     });
     setBusy(false);
@@ -71,14 +72,14 @@ export function TierSetDialog({
         <DialogHeader>
           <DialogTitle>{initial ? "Editar escala de gamificación" : "Nueva escala de gamificación"}</DialogTitle>
           <DialogDescription>
-            Rige desde el mes que elijas, según el mes de venta del proyecto. Antes de la primera escala, la persona se rige por la política general. No se puede cambiar una
+            Rige desde el mes que elijas, según el mes de venta del proyecto (al editar puedes cambiar ese mes). Antes de la primera escala, la persona se rige por la política general. No se puede cambiar una
             escala si ya validaste un mes con ella.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4" noValidate>
           <div className="space-y-2">
             <Label htmlFor="tier-month">Rige desde (mes)</Label>
-            <Input id="tier-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} disabled={Boolean(initial)} />
+            <Input id="tier-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label>Tramos</Label>

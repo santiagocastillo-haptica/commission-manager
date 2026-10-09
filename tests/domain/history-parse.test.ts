@@ -51,7 +51,7 @@ describe("lector de la plantilla de historia", () => {
     expect(k).toContain("Bloqueante:Asignación a proyecto inexistente");
     expect(k).toContain("Bloqueante:Correo inválido");
     expect(k).toContain("Bloqueante:Porcentaje fuera de rango");
-    expect(k).toContain("Decisión:Proyecto sin colaborador");
+    expect(k).toContain("Aceptado:Proyecto sin colaborador");
     expect(k).toContain("Bloqueante:Factura sin proyecto");
     expect(k).toContain("Bloqueante:Factura a proyecto inexistente");
     expect(k).toContain("Bloqueante:Factura emitida sin número");

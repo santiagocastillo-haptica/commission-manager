@@ -13,7 +13,7 @@ import {
 } from "@/server/actions/import";
 import type { ImportProjectResult, PaymentComparison, ValidateMonthsResult } from "@/server/import/history-load";
 
-const VARIANT = { Bloqueante: "danger", Decisión: "warning", Menor: "neutral", Info: "neutral" } as const;
+const VARIANT = { Bloqueante: "danger", Decisión: "warning", Menor: "neutral", Info: "neutral", Aceptado: "success" } as const;
 
 export function HistoryImport() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -81,7 +81,9 @@ export function HistoryImport() {
   }
 
   const imported = results?.ok.filter((r) => r.status === "imported").length ?? 0;
-  const issues = preview?.issues ?? [];
+  const all = preview?.issues ?? [];
+  const accepted = all.filter((i) => i.severity === "Aceptado");
+  const issues = all.filter((i) => i.severity !== "Aceptado");
   const shown = showAll ? issues : issues.filter((i) => i.severity === "Bloqueante" || i.severity === "Decisión").slice(0, 200);
 
   return (
@@ -160,6 +162,25 @@ export function HistoryImport() {
                   </TableBody>
                 </Table>
               </div>
+            )}
+            {accepted.length > 0 && (
+              <details className="rounded-lg border p-3 text-sm">
+                <summary className="cursor-pointer font-semibold">
+                  Aceptados ({accepted.length}) <span className="font-normal text-muted-foreground">· casos ya decididos, no requieren acción</span>
+                </summary>
+                <ul className="mt-3 space-y-1 text-xs">
+                  {Object.entries(
+                    accepted.reduce<Record<string, string[]>>((acc, i) => {
+                      (acc[`${i.type} — ${i.action}`] ??= []).push(i.code);
+                      return acc;
+                    }, {}),
+                  ).map(([k, codes]) => (
+                    <li key={k}>
+                      <Badge variant="success">Aceptado</Badge> <strong>{k}</strong>: <span className="num">{codes.join(", ")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
             {issues.length > shown.length || showAll ? (
               <Button variant="outline" size="xs" onClick={() => setShowAll((s) => !s)}>
