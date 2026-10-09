@@ -1,6 +1,7 @@
 "use client";
 
 import { Calculator, CheckCheck, RotateCcw, Wallet } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -84,6 +85,8 @@ export function ApprovePanel({
   lineCount,
   collaboratorCount,
   hasLines,
+  reviewed,
+  reviewTotal,
 }: {
   settlementId: string;
   code: string;
@@ -93,6 +96,9 @@ export function ApprovePanel({
   lineCount: number;
   collaboratorCount: number;
   hasLines: boolean;
+  /** Proyectos aceptados en la revisión y total de proyectos de la liquidación. */
+  reviewed: number;
+  reviewTotal: number;
 }) {
   const [acked, setAcked] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -149,6 +155,14 @@ export function ApprovePanel({
         </ul>
       )}
 
+      {hasLines && reviewed < reviewTotal && (
+        <p className="border-l-2 border-brand-amber bg-warning-soft px-4 py-3 text-sm text-warning">
+          Has aceptado {reviewed} de {reviewTotal} proyectos en la revisión. Puedes aprobar igual, pero quedarán {reviewTotal - reviewed} sin marcar como revisados.{" "}
+          <Link href="?paso=3" className="font-semibold underline underline-offset-4">
+            Volver a la revisión
+          </Link>
+        </p>
+      )}
       {!hasLines && <p className="text-sm text-danger">No hay comisiones por liquidar en este período.</p>}
 
       <Button size="lg" disabled={!canApprove} onClick={() => setOpen(true)}>
@@ -163,7 +177,7 @@ export function ApprovePanel({
         description={
           <>
             Vas a cerrar <strong>{code}</strong> con un total neto a pagar de <strong>{formatMoney(totals.netPayable, "COP", 2)}</strong> ({formatMoney(totals.gross, "COP", 2)} de comisiones, {formatMoney(totals.adjustments, "COP", 2)} de
-            ajustes). Reconociste {warnings.length} advertencia(s). Esta acción <strong>no se puede deshacer</strong>.
+            ajustes). Reconociste {warnings.length} advertencia(s) y revisaste {reviewed} de {reviewTotal} proyecto(s). Esta acción <strong>no se puede deshacer</strong>.
           </>
         }
         onConfirm={async () => {

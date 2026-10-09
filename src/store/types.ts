@@ -323,3 +323,12 @@ export interface SystemStateDoc {
   closing: { settlementCode: string; closingId: string; startedAt: Iso } | null;
   updatedAt: Iso;
 }
+
+/** Revisión de una liquidación, proyecto por proyecto (documento `settlementReviews/{código}`). */
+export interface SettlementReviewDoc {
+  id: string; // = código de la liquidación
+  code: string;
+  /** Por código de proyecto: la huella de las líneas que se aceptaron (si cambian, la aceptación deja de valer). */
+  projects: Record<string, { fingerprint: string; acceptedAt: Iso; acceptedById: string | null }>;
+  updatedAt: Iso;
+}

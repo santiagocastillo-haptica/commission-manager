@@ -468,5 +468,6 @@ export async function discardDraft(tx: Tx, code: string, userId: string) {
   // El borrador se elimina por completo (no deja una liquidación vacía que bloquee las siguientes).
   for (const d of lines) tx.delete(d.ref);
   tx.delete(settlementRef(code));
+  tx.delete(ref(C.settlementReviews, code)); // la revisión pertenece a ese borrador
   audit(tx, { entity: "Settlement", entityId: code, action: "DISCARD", summary: `Borrador de ${s.code} descartado`, userId });
 }

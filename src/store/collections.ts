@@ -14,6 +14,7 @@ export const C = {
   invoices: "invoices",
   adjustments: "adjustments",
   settlements: "settlements",
+  settlementReviews: "settlementReviews",
   commitments: "commitments",
   generatedReports: "generatedReports",
   auditLog: "auditLog",

@@ -6,8 +6,9 @@ import { todayBogota } from "@/domain/dates";
 import { settlementPeriod } from "@/domain/periods";
 import { dateString, positiveMoney } from "@/lib/schemas";
 import { ok, toFailure, type ActionResult } from "@/server/action-result";
-import { assertNotClosing, runTx } from "@/store";
+import { C, assertNotClosing, audit, now, ref, runTx, type SettlementReviewDoc } from "@/store";
 import { requireSession } from "../auth";
+import { getSettlementView, parseSettlementCode } from "../queries/settlements";
 import { approveSettlement, calculateDraft, discardDraft, finishClosing, registerPayment } from "../services/settlements";
 
 const periodSchema = z.object({ year: z.number().int().min(2020).max(2100), half: z.enum(["APRIL", "OCTOBER"]) });
@@ -103,3 +104,41 @@ export async function registerPaymentAction(input: z.input<typeof paymentSchema>
   }
 }
 
+
+const reviewSchema = z.object({ code: z.string().min(1), projectCode: z.string().min(1), accepted: z.boolean() });
+
+/**
+ * Acepta (o quita la aceptación de) un proyecto dentro de una liquidación en borrador: «lo revisé y está bien».
+ * Se guarda con la huella de las líneas actuales; si después cambian, la aceptación deja de valer y hay que revisarlo de nuevo.
+ */
+export async function setProjectReviewAction(input: z.input<typeof reviewSchema>): Promise<ActionResult> {
+  const session = await requireSession();
+  try {
+    const data = reviewSchema.parse(input);
+    const parsed = parseSettlementCode(data.code);
+    if (!parsed) return { ok: false, error: "Liquidación no válida." };
+    const view = await getSettlementView(parsed.year, parsed.half);
+    if (view.status === "APPROVED" || view.status === "CLOSING") return { ok: false, error: "La liquidación ya está aprobada: la revisión quedó registrada y no se modifica." };
+    const project = view.projects.find((p) => p.projectCode === data.projectCode);
+    if (!project) return { ok: false, error: "Ese proyecto no tiene líneas en esta liquidación (recalcula)." };
+
+    await runTx(async (tx) => {
+      await assertNotClosing(tx);
+      const r = ref(C.settlementReviews, data.code);
+      const snap = await tx.get(r);
+      const doc: SettlementReviewDoc = snap.exists ? (snap.data() as SettlementReviewDoc) : { id: data.code, code: data.code, projects: {}, updatedAt: now() };
+      const projects = { ...doc.projects };
+      if (data.accepted) projects[data.projectCode] = { fingerprint: project.fingerprint, acceptedAt: now(), acceptedById: session.userId };
+      else delete projects[data.projectCode];
+      tx.set(r, { ...doc, projects, updatedAt: now() });
+      audit(tx, {
+        entity: "SettlementReview", entityId: data.code, action: data.accepted ? "ACCEPT" : "UNACCEPT", userId: session.userId,
+        summary: `Proyecto ${data.projectCode} ${data.accepted ? "aceptado" : "desmarcado"} en la revisión de ${data.code} (${project.lines.length} línea(s), comisión ${project.total})`,
+      });
+    });
+    revalidatePath(`/liquidaciones/${data.code}`);
+    return ok(undefined, data.accepted ? "Proyecto aceptado." : "Aceptación retirada.");
+  } catch (e) {
+    return toFailure(e);
+  }
+}

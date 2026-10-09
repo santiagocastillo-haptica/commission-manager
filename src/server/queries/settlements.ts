@@ -2,7 +2,7 @@ import type { DateOnly } from "@/domain/dates";
 import { D, ZERO } from "@/domain/money";
 import { settlementPeriod, type SettlementHalf, type SettlementPeriod } from "@/domain/periods";
 import type { AlertSeverity, CalcLine } from "@/domain/settlement";
-import { C, col, linesCol, peopleCol, ref, type CollaboratorDoc, type PersonSettlementDoc, type SettlementDoc, type SettlementLineDoc } from "@/store";
+import { C, col, linesCol, peopleCol, ref, type CollaboratorDoc, type PersonSettlementDoc, type SettlementDoc, type SettlementLineDoc, type SettlementReviewDoc } from "@/store";
 import { plainReader } from "../commission-data";
 import { personKey, prepareSettlement } from "../services/settlements";
 import type { AckedAlert, AdminSnapshot, CollaboratorSnapshot, LineSnapshot } from "../services/settlement-types";
@@ -63,6 +63,34 @@ export interface AlertView {
   projectId?: string;
 }
 
+export interface ProjectReviewLine {
+  collaborator: string;
+  type: "COLLECTION" | "ADJUSTMENT";
+  invoiceNumber: string | null;
+  collectionDate: DateOnly | null;
+  amountReceived: string | null;
+  currency: string;
+  netBaseCOP: string;
+  baseRate: string;
+  effectiveRate: string;
+  commissionCOP: string;
+}
+
+/** Un proyecto dentro de la liquidación, con su estado de revisión. */
+export interface ProjectReviewView {
+  projectId: string;
+  projectCode: string;
+  saleMonth: string;
+  people: string[];
+  lines: ProjectReviewLine[];
+  total: string;
+  fingerprint: string;
+  /** ACCEPTED: revisado y sin cambios; STALE: se aceptó pero los datos cambiaron; PENDING: sin revisar. */
+  review: "ACCEPTED" | "STALE" | "PENDING";
+  acceptedAt: string | null;
+  acceptedBy: string | null;
+}
+
 export interface SettlementView {
   period: SettlementPeriod;
   /** CLOSING: cierre por lotes interrumpido, pendiente de reanudar. */
@@ -77,6 +105,8 @@ export interface SettlementView {
   collaborators: CollaboratorView[];
   grand: { gross: string; adjustments: string; netPayable: string };
   paidTotal: string;
+  /** Revisión por proyecto (para aceptar que cada uno está bien antes de aprobar). */
+  projects: ProjectReviewView[];
 }
 
 function lineViewFromCalc(l: CalcLine, i: number): LineView {
@@ -117,7 +147,7 @@ async function loadStored(code: string) {
 }
 
 /** Vista de una liquidación: en borrador/sin calcular se calcula en vivo; aprobada se lee lo congelado. */
-export async function getSettlementView(year: number, half: SettlementHalf): Promise<SettlementView> {
+async function buildSettlementView(year: number, half: SettlementHalf): Promise<Omit<SettlementView, "projects">> {
   const period = settlementPeriod(year, half);
   const stored = await loadStored(period.code);
 
@@ -280,4 +310,47 @@ export async function listCollaboratorSettlements(collaboratorId: string): Promi
     rows.push({ code: s.code, paymentDate: s.paymentDate, netPayable: D(p.netPayable).toFixed(), paymentStatus: p.paymentStatus });
   }
   return rows.sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+}
+
+/** Huella de las líneas de un proyecto: cualquier cambio en cantidad, base o comisión invalida la aceptación. */
+export function projectFingerprint(lines: { netBaseCOP: string; commissionCOP: string }[]): string {
+  const base = lines.reduce((a, l) => a.plus(l.netBaseCOP), ZERO);
+  const total = lines.reduce((a, l) => a.plus(l.commissionCOP), ZERO);
+  return `${lines.length}|${base.toFixed(2)}|${total.toFixed(2)}`;
+}
+
+export async function projectReviews(collaborators: CollaboratorView[], code: string): Promise<ProjectReviewView[]> {
+  const snap = await ref(C.settlementReviews, code).get();
+  const doc = snap.exists ? (snap.data() as SettlementReviewDoc) : null;
+  const groups = new Map<string, ProjectReviewView>();
+  for (const c of collaborators) {
+    for (const l of c.lines) {
+      let g = groups.get(l.projectId);
+      if (!g) {
+        g = { projectId: l.projectId, projectCode: l.projectCode, saleMonth: l.saleMonth, people: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null };
+        groups.set(l.projectId, g);
+      }
+      if (!g.people.includes(c.name)) g.people.push(c.name);
+      g.lines.push({ collaborator: c.name, type: l.type, invoiceNumber: l.invoiceNumber, collectionDate: l.collectionDate, amountReceived: l.amountReceived, currency: l.currency, netBaseCOP: l.netBaseCOP, baseRate: l.baseRate, effectiveRate: l.effectiveRate, commissionCOP: l.commissionCOP });
+    }
+  }
+  const names = new Map<string, string | null>();
+  const rows = [...groups.values()].sort((a, b) => a.projectCode.localeCompare(b.projectCode, undefined, { numeric: true }));
+  for (const g of rows) {
+    g.fingerprint = projectFingerprint(g.lines);
+    g.total = g.lines.reduce((a, l) => a.plus(l.commissionCOP), ZERO).toFixed();
+    const entry = doc?.projects[g.projectCode];
+    if (entry) {
+      g.review = entry.fingerprint === g.fingerprint ? "ACCEPTED" : "STALE";
+      g.acceptedAt = entry.acceptedAt;
+      if (entry.acceptedById && !names.has(entry.acceptedById)) names.set(entry.acceptedById, await userName(entry.acceptedById));
+      g.acceptedBy = entry.acceptedById ? (names.get(entry.acceptedById) ?? null) : null;
+    }
+  }
+  return rows;
+}
+
+export async function getSettlementView(year: number, half: SettlementHalf): Promise<SettlementView> {
+  const view = await buildSettlementView(year, half);
+  return { ...view, projects: await projectReviews(view.collaborators, view.period.code) };
 }

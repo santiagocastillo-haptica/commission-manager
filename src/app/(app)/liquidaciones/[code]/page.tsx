@@ -11,6 +11,7 @@ import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money
 import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth";
 import { getSettlementView, parseSettlementCode, type AlertView, type CollaboratorView, type SettlementView } from "@/server/queries/settlements";
+import { ProjectReviewPanel } from "./review-panel";
 import { ApprovePanel, CalculateButton, DiscardButton, PaymentDialog } from "./wizard-client";
 
 export const metadata: Metadata = { title: "Liquidación" };
@@ -244,6 +245,8 @@ function StepReview({ view, year, half }: { view: SettlementView; year: number; 
         <p className="mt-2 text-xs text-muted-foreground">Corrige las inconsistencias en el proyecto, la factura o el recaudo y vuelve a calcular. Las advertencias se reconocen al aprobar; las bloqueantes impiden el cierre.</p>
       </div>
 
+      <ProjectReviewPanel code={view.period.code} projects={view.projects} readOnly={approved} />
+
       <div className="space-y-3">
         <h3 className="text-sm font-bold">Resultado por colaborador</h3>
         {view.collaborators.length === 0 && <p className="text-sm text-muted-foreground">No hay recaudos elegibles en este período.</p>}
@@ -327,6 +330,8 @@ function StepApprove({ view }: { view: SettlementView }) {
         lineCount={view.collaborators.reduce((a, c) => a + c.lines.length, 0)}
         collaboratorCount={view.collaborators.length}
         hasLines={view.collaborators.length > 0 && view.settlementId !== null}
+        reviewed={view.projects.filter((x) => x.review === "ACCEPTED").length}
+        reviewTotal={view.projects.length}
       />
     </section>
   );
