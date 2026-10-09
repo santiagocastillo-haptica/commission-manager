@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatCOP0 } from "@/domain/money";
 import {
-  comparePaymentsAction, finishHistoryImportAction, importHistoryProjectAction, previewHistoryAction, validateClosedMonthsAction,
+  arqueoAction, arqueoExcelAction, comparePaymentsAction, finishHistoryImportAction, importHistoryProjectAction, previewHistoryAction, validateClosedMonthsAction,
   type HistoryPreview,
 } from "@/server/actions/import";
-import type { ImportProjectResult, PaymentComparison, ValidateMonthsResult } from "@/server/import/history-load";
+import type { Arqueo, ImportProjectResult, PaymentComparison, ValidateMonthsResult } from "@/server/import/history-load";
 
 const VARIANT = { Bloqueante: "danger", Decisión: "warning", Menor: "neutral", Info: "neutral", Aceptado: "success" } as const;
 
@@ -24,6 +24,7 @@ export function HistoryImport() {
   const [results, setResults] = useState<{ ok: ImportProjectResult[]; failed: { code: string; error: string }[] } | null>(null);
   const [months, setMonths] = useState<ValidateMonthsResult | null>(null);
   const [comparison, setComparison] = useState<PaymentComparison | null>(null);
+  const [arqueo, setArqueo] = useState<Arqueo | null>(null);
   const [showAll, setShowAll] = useState(false);
 
   async function review() {
@@ -69,6 +70,30 @@ export function HistoryImport() {
     if (!res.ok) return toast.error(res.error);
     setMonths(res.data!);
     toast[res.data!.errors.length ? "error" : "success"](res.message ?? "Listo.");
+  }
+
+  async function runArqueo() {
+    if (!preview) return;
+    setBusy("arqueo");
+    const res = await arqueoAction({ projects: preview.projects, payments: preview.payments });
+    setBusy(null);
+    if (!res.ok) return toast.error(res.error);
+    setArqueo(res.data!);
+  }
+
+  async function downloadArqueo() {
+    if (!preview) return;
+    setBusy("arqueo-xlsx");
+    const res = await arqueoExcelAction({ projects: preview.projects, payments: preview.payments });
+    setBusy(null);
+    if (!res.ok) return toast.error(res.error);
+    const bytes = Uint8Array.from(atob(res.data!.base64), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = res.data!.filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function compare() {
@@ -254,7 +279,73 @@ export function HistoryImport() {
       </section>
 
       <section className="rounded-lg border p-5">
-        <h2 className="text-lg font-bold">4 · Comparar con lo pagado (solo lectura)</h2>
+        <h2 className="text-lg font-bold">4 · Arqueo por trimestre</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Cortes exactos por trimestre: ventas, facturado y recaudado de la <strong>plantilla frente a la aplicación</strong> (deben cuadrar al peso), y la comisión generada por los recaudos de cada
+          trimestre frente a lo pagado (los códigos <em>LIQ-AAAA-Q#</em> se toman como el trimestre de los recaudos que se pagaron). Solo lectura.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Button onClick={runArqueo} disabled={!preview || busy !== null}>
+            {busy === "arqueo" ? "Calculando…" : "Calcular arqueo"}
+          </Button>
+          <Button variant="outline" onClick={downloadArqueo} disabled={!preview || busy !== null}>
+            {busy === "arqueo-xlsx" ? "Generando…" : "Descargar Excel"}
+          </Button>
+        </div>
+        {arqueo && (
+          <div className="mt-4 space-y-3">
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/50">
+                    <TableHead>Trimestre</TableHead>
+                    <TableHead className="text-right">Ventas (app)</TableHead>
+                    <TableHead className="text-right">Dif. vs plantilla</TableHead>
+                    <TableHead className="text-right">Facturado (app)</TableHead>
+                    <TableHead className="text-right">Dif.</TableHead>
+                    <TableHead className="text-right">Recaudado (app)</TableHead>
+                    <TableHead className="text-right">Dif.</TableHead>
+                    <TableHead className="text-right">Comisión generada</TableHead>
+                    <TableHead className="text-right">Pagada</TableHead>
+                    <TableHead className="text-right">Generada − pagada</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {arqueo.quarters.map((q) => {
+                    const dv = Number(q.app.sales) - Number(q.plan.sales);
+                    const di = Number(q.app.invoiced) - Number(q.plan.invoiced);
+                    const dc = Number(q.app.collected) - Number(q.plan.collected);
+                    const bad = (n: number) => (Math.abs(n) > 1 ? "text-danger font-semibold" : "text-muted-foreground");
+                    return (
+                      <TableRow key={q.quarter}>
+                        <TableCell className="num font-semibold">{q.quarter}</TableCell>
+                        <TableCell className="num text-right">{formatCOP0(q.app.sales)}</TableCell>
+                        <TableCell className={`num text-right ${bad(dv)}`}>{formatCOP0(dv)}</TableCell>
+                        <TableCell className="num text-right">{formatCOP0(q.app.invoiced)}</TableCell>
+                        <TableCell className={`num text-right ${bad(di)}`}>{formatCOP0(di)}</TableCell>
+                        <TableCell className="num text-right">{formatCOP0(q.app.collected)}</TableCell>
+                        <TableCell className={`num text-right ${bad(dc)}`}>{formatCOP0(dc)}</TableCell>
+                        <TableCell className="num text-right">{formatCOP0(q.commissionGenerated)}</TableCell>
+                        <TableCell className="num text-right">{formatCOP0(q.commissionPaid)}</TableCell>
+                        <TableCell className="num text-right font-semibold">{formatCOP0(Number(q.commissionGenerated) - Number(q.commissionPaid))}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {arqueo.notes.map((n) => (
+              <p key={n} className="text-xs text-muted-foreground">
+                {n}
+              </p>
+            ))}
+            <p className="text-xs text-muted-foreground">Las diferencias de ventas, facturado y recaudado deben ser 0: si no, falta algo por importar. El detalle por colaborador está en el Excel.</p>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border p-5">
+        <h2 className="text-lg font-bold">5 · Comparar por semestre (para aprobar liquidaciones)</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Calcula, semestre por semestre, lo que liquidaría la aplicación y lo compara con la hoja <em>Pagos_realizados</em> de la plantilla. Los códigos trimestrales se agrupan por semestre
           (Q4 y Q1 → abril; Q2 y Q3 → octubre). No guarda nada. Revisa las diferencias antes de aprobar cualquier liquidación histórica.

@@ -8,8 +8,8 @@ import { fail, ok, toFailure, type ActionResult } from "@/server/action-result";
 import { requireSession } from "../auth";
 import { parseHistoryWorkbook, sortIssues, type HistoryIssue, type HistoryPayment, type HistoryProject } from "../import/history";
 import {
-  collaboratorsByEmail, comparePayments, importProject, validateClosedMonths,
-  type ImportProjectResult, type PaymentComparison, type ValidateMonthsResult,
+  arqueoByQuarter, collaboratorsByEmail, comparePayments, importProject, validateClosedMonths,
+  type Arqueo, type ImportProjectResult, type PaymentComparison, type ValidateMonthsResult,
 } from "../import/history-load";
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -144,6 +144,86 @@ export async function comparePaymentsAction(payments: HistoryPayment[]): Promise
       .max(5000)
       .parse(payments) as HistoryPayment[];
     return ok(await comparePayments(list));
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+const paymentsSchema = z
+  .array(z.object({ liquidation: z.string(), email: z.string(), amount: z.string(), paidAt: z.string().nullable(), reference: z.string().nullable(), row: z.number() }))
+  .max(5000);
+
+async function runArqueo(input: { projects: HistoryProject[]; payments: HistoryPayment[] }): Promise<Arqueo> {
+  const projects = z.array(projectSchema).max(2000).parse(input.projects) as HistoryProject[];
+  const payments = paymentsSchema.parse(input.payments) as HistoryPayment[];
+  return arqueoByQuarter(projects, payments);
+}
+
+/** Arqueo trimestral: plantilla vs aplicación (ventas, facturado, recaudado) y comisión generada vs pagada. Solo lectura. */
+export async function arqueoAction(input: { projects: HistoryProject[]; payments: HistoryPayment[] }): Promise<ActionResult<Arqueo>> {
+  await requireSession();
+  try {
+    return ok(await runArqueo(input));
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+/** Excel del arqueo (base64) para descargar. */
+export async function arqueoExcelAction(input: { projects: HistoryProject[]; payments: HistoryPayment[] }): Promise<ActionResult<{ filename: string; base64: string }>> {
+  await requireSession();
+  try {
+    const a = await runArqueo(input);
+    const wb = new ExcelJS.Workbook();
+    const head = (ws: ExcelJS.Worksheet) =>
+      ws.getRow(1).eachCell((c) => {
+        c.font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF006663" } };
+        c.alignment = { wrapText: true, vertical: "middle" };
+      });
+    const money = { numFmt: "#,##0" };
+    const ws = wb.addWorksheet("Arqueo por trimestre", { views: [{ state: "frozen", ySplit: 1 }] });
+    ws.columns = [
+      { header: "Trimestre", width: 11 },
+      { header: "Proyectos (plantilla)", width: 12 }, { header: "Proyectos (app)", width: 12 },
+      { header: "Ventas plantilla", width: 17, style: money }, { header: "Ventas app", width: 17, style: money }, { header: "Dif. ventas", width: 14, style: money },
+      { header: "Facturado plantilla", width: 17, style: money }, { header: "Facturado app", width: 17, style: money }, { header: "Dif. facturado", width: 14, style: money },
+      { header: "Recaudado plantilla", width: 17, style: money }, { header: "Recaudado app", width: 17, style: money }, { header: "Dif. recaudado", width: 14, style: money },
+      { header: "Comisión generada (app)", width: 18, style: money }, { header: "Comisión pagada (hoja de pagos)", width: 20, style: money }, { header: "Dif. generada − pagada", width: 18, style: money },
+    ];
+    for (const q of a.quarters) {
+      const n = (s: string) => Number(s);
+      ws.addRow([
+        q.quarter, q.plan.projects, q.app.projects,
+        n(q.plan.sales), n(q.app.sales), n(q.app.sales) - n(q.plan.sales),
+        n(q.plan.invoiced), n(q.app.invoiced), n(q.app.invoiced) - n(q.plan.invoiced),
+        n(q.plan.collected), n(q.app.collected), n(q.app.collected) - n(q.plan.collected),
+        n(q.commissionGenerated), n(q.commissionPaid), n(q.commissionGenerated) - n(q.commissionPaid),
+      ]);
+    }
+    const total = ws.addRow(["TOTAL", ...Array.from({ length: 14 }, (_, i) => ({ formula: `SUM(${String.fromCharCode(66 + i)}2:${String.fromCharCode(66 + i)}${a.quarters.length + 1})` }))]);
+    total.font = { name: "Arial", size: 10, bold: true };
+    head(ws);
+    ws.eachRow((r, i) => { if (i > 1 && i <= a.quarters.length + 1) r.eachCell((c) => { c.font = { name: "Arial", size: 10 }; }); });
+
+    const wp = wb.addWorksheet("Por colaborador", { views: [{ state: "frozen", ySplit: 1 }] });
+    wp.columns = [{ header: "Trimestre del recaudo", width: 14 }, { header: "Colaborador (correo)", width: 36 }, { header: "Nombre", width: 28 }, { header: "Generada (app)", width: 16, style: money }, { header: "Pagada (hoja)", width: 16, style: money }, { header: "Diferencia", width: 16, style: money }];
+    for (const r of a.people) wp.addRow([r.quarter, r.email, r.name, Number(r.generated), Number(r.paid), Number(r.difference)]);
+    head(wp);
+    wp.eachRow((r, i) => { if (i > 1) r.eachCell((c) => { c.font = { name: "Arial", size: 10 }; }); });
+    wp.autoFilter = { from: "A1", to: "F1" };
+
+    const wn = wb.addWorksheet("Notas");
+    wn.columns = [{ width: 120 }];
+    for (const line of [
+      "Cortes exactos por trimestre calendario.",
+      "Ventas: valor vendido por fecha de venta. Facturado: facturas emitidas por fecha de emisión. Recaudado: recaudos por fecha de recaudo. Todo antes de IVA, en COP.",
+      "Comisión generada: la que producen los recaudos del trimestre con los porcentajes efectivos fijados al validar cada mes de venta.",
+      "Pagada: hoja Pagos_realizados; los códigos LIQ-AAAA-Q# se toman como el trimestre de los RECAUDOS que se pagaron.",
+      ...a.notes,
+    ]) wn.addRow([line]).font = { name: "Arial", size: 10 };
+    const buf = Buffer.from(await wb.xlsx.writeBuffer());
+    return ok({ filename: "Arqueo-trimestral.xlsx", base64: buf.toString("base64") });
   } catch (e) {
     return toFailure(e);
   }

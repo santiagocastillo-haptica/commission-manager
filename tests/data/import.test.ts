@@ -6,7 +6,7 @@ vi.mock("@/server/auth", () => ({ requireSession: async () => ({ userId: "u1", e
 
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { parseHistoryWorkbook, type HistoryProject } from "@/server/import/history";
-import { collaboratorsByEmail, comparePayments, importProject, validateClosedMonths } from "@/server/import/history-load";
+import { arqueoByQuarter, collaboratorsByEmail, comparePayments, importProject, quarterOf, validateClosedMonths } from "@/server/import/history-load";
 import { bootstrapBase } from "@/store/bootstrap";
 import { C, col, ref, type AuditDoc, type InvoiceDoc, type MonthlySalesDoc, type ProjectDoc } from "@/store";
 import { clearFirestore, hasEmulator } from "../helpers/firestore";
@@ -131,5 +131,21 @@ suite("importación de la historia en Firestore", () => {
     expect(Number(row("LIQ-2026-10", "ana@haptica.co")?.calculated)).toBeGreaterThan(0);
     expect(cmp.totals.length).toBeGreaterThan(0);
     expect(cmp.unmapped).toEqual([]);
+  });
+
+  it("arqueo trimestral: la plantilla cuadra con la aplicación y la comisión generada se compara con lo pagado por trimestre del recaudo", async () => {
+    const plan = sample();
+    const byEmail = await collaboratorsByEmail();
+    for (const p of plan.projects) await importProject(U, p, byEmail);
+    await validateClosedMonths(U, TODAY);
+    expect(quarterOf("2025-12-15")).toBe("2025-Q4");
+    const a = await arqueoByQuarter(plan.projects, plan.payments, TODAY);
+    // la aplicación tiene exactamente lo mismo que la plantilla
+    for (const q of a.quarters) expect([q.quarter, q.app.sales, q.app.invoiced, q.app.collected]).toEqual([q.quarter, q.plan.sales, q.plan.invoiced, q.plan.collected]);
+    const q = (name: string) => a.quarters.find((x) => x.quarter === name)!;
+    expect(q("2025-Q4")).toMatchObject({ plan: { sales: "468000000.00", collected: "100000000.00", projects: 1 }, commissionGenerated: "1500000.00", commissionPaid: "1000.00" }); // H-002: 120 % → 1,5 %
+    expect(q("2026-Q1").app.sales).toBe("468000000.00");
+    expect(q("2026-Q2")).toMatchObject({ plan: { collected: "100000000.00" }, commissionPaid: "0.00" }); // H-001 recaudo en mayo
+    expect(a.people.find((r) => r.quarter === "2026-Q1" && r.email === "ana@haptica.co")).toMatchObject({ generated: "0.00", paid: "100000.00" });
   });
 });

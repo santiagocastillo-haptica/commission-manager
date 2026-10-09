@@ -239,3 +239,116 @@ export async function comparePayments(payments: HistoryPayment[], today: string 
   });
   return { rows, mapping, totals, unmapped };
 }
+
+// ───────── Arqueo trimestral ─────────
+
+export const quarterOf = (date: string): string => `${date.slice(0, 4)}-Q${Math.ceil(Number(date.slice(5, 7)) / 3)}`;
+
+export interface ArqueoQuarter {
+  quarter: string;
+  /** Lo que dice la plantilla. */
+  plan: { sales: string; invoiced: string; collected: string; projects: number };
+  /** Lo que hay en la aplicación. */
+  app: { sales: string; invoiced: string; collected: string; projects: number };
+  /** Comisión generada por los recaudos del trimestre (porcentajes efectivos vigentes) y lo pagado según la hoja de pagos. */
+  commissionGenerated: string;
+  commissionPaid: string;
+}
+export interface ArqueoPersonRow {
+  quarter: string;
+  email: string;
+  name: string;
+  generated: string;
+  paid: string;
+  difference: string;
+}
+export interface Arqueo {
+  quarters: ArqueoQuarter[];
+  people: ArqueoPersonRow[];
+  notes: string[];
+}
+
+/**
+ * Arqueo por trimestre (cortes exactos): ventas, facturado, recaudado y comisión generada en la aplicación frente a la
+ * plantilla y a lo pagado. Los códigos de pago «LIQ-AAAA-Q#» se toman como el trimestre de los RECAUDOS que se pagaron.
+ */
+export async function arqueoByQuarter(projects: HistoryProject[], payments: HistoryPayment[], today: string = todayBogota()): Promise<Arqueo> {
+  const add = (m: Map<string, ReturnType<typeof D>>, k: string, v: string | number) => m.set(k, (m.get(k) ?? ZERO).plus(v));
+  const planSales = new Map<string, ReturnType<typeof D>>();
+  const planInv = new Map<string, ReturnType<typeof D>>();
+  const planCol = new Map<string, ReturnType<typeof D>>();
+  const planCount = new Map<string, number>();
+  for (const p of projects) {
+    const q = quarterOf(p.saleDate);
+    add(planSales, q, p.sale);
+    planCount.set(q, (planCount.get(q) ?? 0) + 1);
+    for (const i of p.invoices) {
+      if (i.status === "ISSUED" && i.issueDate) add(planInv, quarterOf(i.issueDate), i.amount);
+      for (const c of i.collections) add(planCol, quarterOf(c.date), c.amount);
+    }
+  }
+
+  const appProjects = (await col(C.projects).get()).docs.map((d) => d.data() as ProjectDoc).filter((p) => !p.voidedAt);
+  const appInvoices = (await col(C.invoices).get()).docs.map((d) => d.data() as InvoiceDoc).filter((i) => !i.voidedAt);
+  const appSales = new Map<string, ReturnType<typeof D>>();
+  const appInv = new Map<string, ReturnType<typeof D>>();
+  const appCol = new Map<string, ReturnType<typeof D>>();
+  const appCount = new Map<string, number>();
+  for (const p of appProjects) {
+    add(appSales, quarterOf(p.saleDate), p.saleAmountCOP);
+    appCount.set(quarterOf(p.saleDate), (appCount.get(quarterOf(p.saleDate)) ?? 0) + 1);
+  }
+  for (const i of appInvoices) {
+    if (i.status === "ISSUED" && i.issueDate) add(appInv, quarterOf(i.issueDate), i.amountPreTax);
+    for (const c of i.collections) if (!c.voidedAt) add(appCol, quarterOf(c.date), c.amountCOP);
+  }
+
+  const commissionProjects = await loadCommissionProjectsWith(plainReader);
+  const collabs = (await col(C.collaborators).get()).docs.map((d) => d.data() as CollaboratorDoc);
+  const emailById = new Map(collabs.map((c) => [c.id, c.email.toLowerCase()]));
+  const nameByEmail = new Map(collabs.map((c) => [c.email.toLowerCase(), c.fullName]));
+  const res = calculateSettlement({ period: { periodStart: "2024-09-01", periodEnd: today }, projects: commissionProjects, priorCommits: [], carryovers: {} }, { storageScale: STORAGE_SCALE });
+  const gen = new Map<string, ReturnType<typeof D>>();
+  const genPerson = new Map<string, ReturnType<typeof D>>();
+  for (const l of res.lines) {
+    const date = l.detail.collectionDate ?? l.detail.invoiceDate;
+    if (!date) continue;
+    const q = quarterOf(date);
+    add(gen, q, l.commissionCOP.toFixed());
+    add(genPerson, `${q}|${emailById.get(l.collaboratorId) ?? l.collaboratorId}`, l.commissionCOP.toFixed());
+  }
+
+  const notes: string[] = [];
+  const paidQ = new Map<string, ReturnType<typeof D>>();
+  const paidPerson = new Map<string, ReturnType<typeof D>>();
+  for (const g of payments) {
+    const m = /^LIQ-(\d{4})-Q([1-4])$/.exec(g.liquidation);
+    if (!m) {
+      if (!notes.some((n) => n.includes(g.liquidation))) notes.push(`El código de pago «${g.liquidation}» no es trimestral (LIQ-AAAA-Q#): no se incluye en el arqueo trimestral.`);
+      continue;
+    }
+    const q = `${m[1]}-Q${m[2]}`;
+    add(paidQ, q, g.amount);
+    add(paidPerson, `${q}|${g.email}`, g.amount);
+  }
+
+  const keys = [...new Set([...planSales.keys(), ...planInv.keys(), ...planCol.keys(), ...appSales.keys(), ...appInv.keys(), ...appCol.keys(), ...gen.keys(), ...paidQ.keys()])].sort();
+  const z = (m: Map<string, ReturnType<typeof D>>, k: string) => (m.get(k) ?? ZERO).toFixed(2);
+  const quarters: ArqueoQuarter[] = keys.map((q) => ({
+    quarter: q,
+    plan: { sales: z(planSales, q), invoiced: z(planInv, q), collected: z(planCol, q), projects: planCount.get(q) ?? 0 },
+    app: { sales: z(appSales, q), invoiced: z(appInv, q), collected: z(appCol, q), projects: appCount.get(q) ?? 0 },
+    commissionGenerated: z(gen, q),
+    commissionPaid: z(paidQ, q),
+  }));
+  const pKeys = [...new Set([...genPerson.keys(), ...paidPerson.keys()])].sort();
+  const people: ArqueoPersonRow[] = pKeys
+    .map((k) => {
+      const [quarter, email] = k.split("|");
+      const g = genPerson.get(k) ?? ZERO;
+      const p = paidPerson.get(k) ?? ZERO;
+      return { quarter, email, name: nameByEmail.get(email) ?? email, generated: g.toFixed(2), paid: p.toFixed(2), difference: g.minus(p).toFixed(2) };
+    })
+    .filter((r) => !D(r.generated).isZero() || !D(r.paid).isZero());
+  return { quarters, people, notes };
+}
