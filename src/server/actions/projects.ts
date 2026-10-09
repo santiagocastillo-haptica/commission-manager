@@ -146,7 +146,7 @@ export async function saveProjectAction(
             const caption = prev.removedAt ? "Reasignación" : "Cambio de porcentaje";
             changes.push(`~ ${name} ${pct(prev.baseRate)} % → ${rate.mul(100).toFixed()} %`);
             assignments[idx] = {
-              ...prev, baseRate: rate.toFixed(), removedAt: null, removedReason: null, effectiveRate: null, effectiveRateRule: null,
+              ...prev, baseRate: rate.toFixed(), removedAt: null, removedReason: null, effectiveRate: null, effectiveRateRule: null, exception: null,
               versions: [...prev.versions, version(rate.toFixed(), `${caption}: ${reason || "—"}`)],
             };
           }

@@ -26,6 +26,7 @@ Abre el período (abril o octubre) y sigue los 6 pasos:
 | 2 Calcular | Pulsas **Calcular liquidación**. Es repetible hasta aprobar. |
 | 3 Revisar | Totales, **alertas** de los datos de origen (con enlace al proyecto) y detalle por colaborador → proyecto → factura → recaudo. Corrige y recalcula. |
 |   | **Revisión por proyecto:** cada proyecto de la liquidación se puede abrir, ver sus líneas y marcar **«Está bien»**. Queda guardado quién y cuándo. Si los datos del proyecto cambian después (otro recaudo, un ajuste), la aceptación se anula sola («Cambió: revísalo de nuevo»). Al aprobar, la app avisa cuántos proyectos quedaron sin revisar (no bloquea). |
+|   | **Excepción de porcentaje:** en cada proyecto de la revisión, junto a cada colaborador, **«Editar %»** cambia su porcentaje efectivo (sin tope, con motivo obligatorio) para los recaudos de ese proyecto aún no liquidados. Queda en la bitácora con tu nombre. Requiere el mes de venta validado y que esa asignación no tenga comisiones ya liquidadas (en ese caso se usa un ajuste). Reabrir el mes elimina sus excepciones. «Quitar excepción» restaura el porcentaje calculado. |
 | 4 Aprobar | Reconoces las advertencias y confirmas. Las alertas **bloqueantes** impiden el cierre. Al aprobar la liquidación queda **inmutable**. |
 | 5 Reportes | PDF individual de cada colaborador (o todos en un ZIP), reporte administrativo en PDF y en Excel. |
 | 6 Pagos | Registras cada pago: fecha, valor y referencia. Aprobación y pago son estados distintos. |

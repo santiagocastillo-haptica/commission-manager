@@ -6,7 +6,9 @@ import { todayBogota } from "@/domain/dates";
 import { settlementPeriod } from "@/domain/periods";
 import { dateString, positiveMoney } from "@/lib/schemas";
 import { ok, toFailure, type ActionResult } from "@/server/action-result";
-import { C, assertNotClosing, audit, now, ref, runTx, type SettlementReviewDoc } from "@/store";
+import { C, assertNotClosing, audit, isSettled, now, ref, runTx, type MonthlySalesDoc, type ProjectDoc, type SettlementReviewDoc } from "@/store";
+import { D, formatPercent } from "@/domain/money";
+import { DomainError } from "@/domain/project";
 import { requireSession } from "../auth";
 import { getSettlementView, parseSettlementCode } from "../queries/settlements";
 import { approveSettlement, calculateDraft, discardDraft, finishClosing, registerPayment } from "../services/settlements";
@@ -138,6 +140,74 @@ export async function setProjectReviewAction(input: z.input<typeof reviewSchema>
     });
     revalidatePath(`/liquidaciones/${data.code}`);
     return ok(undefined, data.accepted ? "Proyecto aceptado." : "Aceptación retirada.");
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+const exceptionSchema = z.object({
+  projectCode: z.string().min(1),
+  assignmentId: z.string().min(1),
+  /** Porcentaje efectivo en puntos porcentuales (0.5 = 0,5 %); null quita la excepción y restaura el porcentaje calculado. */
+  ratePercent: z.string().trim().regex(/^\d+(\.\d+)?$/, "Ingresa un porcentaje válido (ej. 0.5).").nullable(),
+  reason: z.string().trim().max(1000),
+});
+
+/**
+ * Excepción manual del porcentaje efectivo de una persona en un proyecto (sin tope). Aplica a todos sus recaudos aún no
+ * liquidados. Requiere el mes de venta validado y que la asignación no tenga comisiones ya liquidadas; motivo obligatorio.
+ */
+export async function setRateExceptionAction(input: z.input<typeof exceptionSchema>): Promise<ActionResult> {
+  const session = await requireSession();
+  try {
+    const data = exceptionSchema.parse(input);
+    if (data.ratePercent !== null && data.reason.length < 10) {
+      return { ok: false, error: "Explica el motivo de la excepción (mínimo 10 caracteres).", fieldErrors: { reason: "Explica el motivo (mínimo 10 caracteres)." } };
+    }
+    if (data.ratePercent !== null && D(data.ratePercent).gt(100)) return { ok: false, error: "El porcentaje no puede superar 100 %.", fieldErrors: { ratePercent: "Máximo 100 %." } };
+
+    await runTx(async (tx) => {
+      await assertNotClosing(tx);
+      const snap = await tx.get(ref(C.projects, data.projectCode));
+      if (!snap.exists) throw new DomainError("El proyecto no existe.");
+      const project = snap.data() as ProjectDoc;
+      if (project.voidedAt) throw new DomainError("El proyecto está anulado.");
+      const idx = project.assignments.findIndex((a) => a.id === data.assignmentId && !a.removedAt);
+      if (idx < 0) throw new DomainError("La asignación no existe o ya fue retirada.");
+      const month = await tx.get(ref(C.monthlySales, project.saleMonth));
+      if (!month.exists || (month.data() as MonthlySalesDoc).status !== "VALIDATED") {
+        throw new DomainError("Valida primero el mes de venta del proyecto: la excepción modifica el porcentaje que se fija al validarlo.");
+      }
+      if (await isSettled(tx, "assignmentId", data.assignmentId)) {
+        throw new DomainError("Esta asignación ya tiene comisiones liquidadas: su porcentaje no se puede modificar. Registra un ajuste.");
+      }
+
+      const a = project.assignments[idx];
+      const t = now();
+      let next = a;
+      let summary: string;
+      if (data.ratePercent === null) {
+        if (!a.exception) throw new DomainError("Esa asignación no tiene una excepción de porcentaje.");
+        next = { ...a, effectiveRate: a.exception.previousRate, effectiveRateRule: a.exception.previousRule, exception: null };
+        summary = `Excepción de porcentaje retirada en ${project.code}: vuelve a ${a.exception.previousRate ? formatPercent(a.exception.previousRate) : "—"}`;
+      } else {
+        const rate = D(data.ratePercent).div(100);
+        const previous = a.exception ?? { previousRate: a.effectiveRate, previousRule: a.effectiveRateRule };
+        next = {
+          ...a,
+          effectiveRate: rate.toFixed(),
+          effectiveRateRule: `Excepción manual: ${data.reason}`,
+          exception: { reason: data.reason, at: t, byId: session.userId, previousRate: previous.previousRate, previousRule: previous.previousRule },
+        };
+        summary = `Excepción de porcentaje en ${project.code}: ${a.effectiveRate ? formatPercent(a.effectiveRate) : "—"} → ${formatPercent(rate)}. Motivo: ${data.reason}`;
+      }
+      const assignments = project.assignments.map((x, i) => (i === idx ? next : x));
+      tx.set(ref(C.projects, project.id), { ...project, assignments, updatedAt: t, updatedById: session.userId });
+      audit(tx, { entity: "Project", entityId: project.id, action: "RATE_EXCEPTION", summary, before: { effectiveRate: a.effectiveRate }, after: { effectiveRate: next.effectiveRate }, userId: session.userId });
+    });
+    for (const p of ["/liquidaciones", "/proyectos", "/colaboradores", "/"]) revalidatePath(p);
+    revalidatePath(`/proyectos/${data.projectCode}`);
+    return ok(undefined, data.ratePercent === null ? "Excepción retirada." : "Excepción guardada. Recalcula la liquidación para verla reflejada.");
   } catch (e) {
     return toFailure(e);
   }

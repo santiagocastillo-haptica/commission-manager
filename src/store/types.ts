@@ -114,7 +114,18 @@ export interface AssignmentVersionDoc {
   createdById: string | null;
 }
 
+/** Excepción manual del porcentaje efectivo de una asignación (con motivo). Guarda lo que había para poder restaurarlo. */
+export interface AssignmentException {
+  reason: string;
+  at: Iso;
+  byId: string | null;
+  previousRate: string | null;
+  previousRule: string | null;
+}
+
 export interface AssignmentDoc {
+  /** Excepción manual vigente del % efectivo (el valor aplicado está en `effectiveRate`). */
+  exception?: AssignmentException | null;
   id: string;
   collaboratorId: string;
   baseRate: string;

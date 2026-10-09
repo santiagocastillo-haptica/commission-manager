@@ -129,7 +129,7 @@ export async function reopenMonth(tx: Tx, yearMonth: string, reason: string, use
 
   const t = now();
   for (const p of projects) {
-    tx.set(ref(C.projects, p.id), { ...p, assignments: p.assignments.map((a) => ({ ...a, effectiveRate: null, effectiveRateRule: null })), updatedAt: t });
+    tx.set(ref(C.projects, p.id), { ...p, assignments: p.assignments.map((a) => ({ ...a, effectiveRate: null, effectiveRateRule: null, exception: null })), updatedAt: t });
   }
   const after: MonthlySalesDoc = {
     ...month, status: "REOPENED", outcome: null, outcomeReason: null, validatedSalesCOP: null, goalSnapshotCOP: null, achievementRatio: null,

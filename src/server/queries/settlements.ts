@@ -2,7 +2,7 @@ import type { DateOnly } from "@/domain/dates";
 import { D, ZERO } from "@/domain/money";
 import { settlementPeriod, type SettlementHalf, type SettlementPeriod } from "@/domain/periods";
 import type { AlertSeverity, CalcLine } from "@/domain/settlement";
-import { C, col, linesCol, peopleCol, ref, type CollaboratorDoc, type PersonSettlementDoc, type SettlementDoc, type SettlementLineDoc, type SettlementReviewDoc } from "@/store";
+import { C, col, linesCol, peopleCol, ref, type CollaboratorDoc, type PersonSettlementDoc, type SettlementDoc, type ProjectDoc, type SettlementLineDoc, type SettlementReviewDoc } from "@/store";
 import { plainReader } from "../commission-data";
 import { personKey, prepareSettlement } from "../services/settlements";
 import type { AckedAlert, AdminSnapshot, CollaboratorSnapshot, LineSnapshot } from "../services/settlement-types";
@@ -14,6 +14,7 @@ export function parseSettlementCode(code: string): { year: number; half: Settlem
 
 export interface LineView {
   key: string;
+  assignmentId: string;
   type: "COLLECTION" | "ADJUSTMENT";
   projectId: string;
   projectCode: string;
@@ -63,6 +64,16 @@ export interface AlertView {
   projectId?: string;
 }
 
+export interface ProjectReviewAssignment {
+  assignmentId: string;
+  collaborator: string;
+  baseRate: string;
+  effectiveRate: string | null;
+  /** Motivo de la excepción manual vigente (si la hay). */
+  exceptionReason: string | null;
+  exceptionBy: string | null;
+}
+
 export interface ProjectReviewLine {
   collaborator: string;
   type: "COLLECTION" | "ADJUSTMENT";
@@ -82,6 +93,8 @@ export interface ProjectReviewView {
   projectCode: string;
   saleMonth: string;
   people: string[];
+  /** Asignaciones del proyecto (para excepciones de porcentaje). */
+  assignments: ProjectReviewAssignment[];
   lines: ProjectReviewLine[];
   total: string;
   fingerprint: string;
@@ -112,6 +125,7 @@ export interface SettlementView {
 function lineViewFromCalc(l: CalcLine, i: number): LineView {
   return {
     key: `calc-${i}`,
+    assignmentId: l.assignmentId,
     type: l.type,
     projectId: l.projectId,
     projectCode: l.detail.projectCode,
@@ -158,7 +172,7 @@ async function buildSettlementView(year: number, half: SettlementHalf): Promise<
         const mine = lines.filter((l) => l.collaboratorId === cs.collaboratorId).map((l): LineView => {
           const sn = l.snapshot as LineSnapshot;
           return {
-            key: l.id, type: l.type, projectId: l.projectId, projectCode: sn.projectCode, saleMonth: sn.saleMonth,
+            key: l.id, assignmentId: l.assignmentId, type: l.type, projectId: l.projectId, projectCode: sn.projectCode, saleMonth: sn.saleMonth,
             invoiceNumber: sn.invoiceNumber, collectionDate: sn.collectionDate, amountReceived: sn.amountReceived, currency: l.currency, fxRate: D(l.fxRate).toFixed(),
             baseRate: D(l.baseRate).toFixed(), effectiveRate: D(l.effectiveRate).toFixed(), netBaseCOP: D(l.netBaseCOP).toFixed(), commissionCOP: D(l.commissionCOP).toFixed(), isLate: l.isLate,
           };
@@ -327,16 +341,26 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
     for (const l of c.lines) {
       let g = groups.get(l.projectId);
       if (!g) {
-        g = { projectId: l.projectId, projectCode: l.projectCode, saleMonth: l.saleMonth, people: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null };
+        g = { projectId: l.projectId, projectCode: l.projectCode, saleMonth: l.saleMonth, people: [], assignments: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null };
         groups.set(l.projectId, g);
       }
       if (!g.people.includes(c.name)) g.people.push(c.name);
+      if (!g.assignments.some((a) => a.assignmentId === l.assignmentId)) g.assignments.push({ assignmentId: l.assignmentId, collaborator: c.name, baseRate: l.baseRate, effectiveRate: l.effectiveRate, exceptionReason: null, exceptionBy: null });
       g.lines.push({ collaborator: c.name, type: l.type, invoiceNumber: l.invoiceNumber, collectionDate: l.collectionDate, amountReceived: l.amountReceived, currency: l.currency, netBaseCOP: l.netBaseCOP, baseRate: l.baseRate, effectiveRate: l.effectiveRate, commissionCOP: l.commissionCOP });
     }
   }
   const names = new Map<string, string | null>();
+  const projectDocs = new Map((await col(C.projects).get()).docs.map((d) => [d.id, d.data() as ProjectDoc]));
   const rows = [...groups.values()].sort((a, b) => a.projectCode.localeCompare(b.projectCode, undefined, { numeric: true }));
   for (const g of rows) {
+    for (const a of g.assignments) {
+      const ex = projectDocs.get(g.projectId)?.assignments.find((x) => x.id === a.assignmentId)?.exception;
+      if (ex) {
+        a.exceptionReason = ex.reason;
+        if (ex.byId && !names.has(ex.byId)) names.set(ex.byId, await userName(ex.byId));
+        a.exceptionBy = ex.byId ? (names.get(ex.byId) ?? null) : null;
+      }
+    }
     g.fingerprint = projectFingerprint(g.lines);
     g.total = g.lines.reduce((a, l) => a.plus(l.commissionCOP), ZERO).toFixed();
     const entry = doc?.projects[g.projectCode];
