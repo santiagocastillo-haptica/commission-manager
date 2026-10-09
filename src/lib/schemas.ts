@@ -120,8 +120,16 @@ export const invoiceSchema = z
     amountPreTax: positiveMoney,
     netBaseExplicit: z.string().optional(),
     notes: optionalText,
+    /** Solo al registrar: la factura ya fue cobrada por completo en esta fecha (crea el recaudo por el valor total). */
+    collectedOn: z.string().optional().refine((v) => !v || isDateOnly(v), "Ingresa una fecha válida."),
+    /** TRM del día del recaudo (solo si la factura es en moneda extranjera). */
+    collectedFxRate: z.string().optional(),
   })
   .superRefine((i, ctx) => {
+    if (i.collectedOn) {
+      if (i.status !== "ISSUED") ctx.addIssue({ code: "custom", path: ["collectedOn"], message: "Solo una factura emitida puede estar recaudada." });
+      else if (i.issueDate && i.collectedOn < i.issueDate) ctx.addIssue({ code: "custom", path: ["collectedOn"], message: "El recaudo no puede ser anterior a la emisión." });
+    }
     if (i.status === "ISSUED") {
       if (!i.number) ctx.addIssue({ code: "custom", path: ["number"], message: "El número de factura es obligatorio para una factura emitida." });
       if (!i.issueDate) ctx.addIssue({ code: "custom", path: ["issueDate"], message: "La fecha de emisión es obligatoria para una factura emitida." });

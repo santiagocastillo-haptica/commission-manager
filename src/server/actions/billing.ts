@@ -83,6 +83,22 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
         }
       }
 
+      // Opción «ya está recaudada»: solo al registrar una factura emitida nueva; crea el recaudo por el valor total.
+      const collectedOn = !id && data.status === "ISSUED" ? (data.collectedOn || null) : null;
+      let fx = D(1);
+      let rateExists = true;
+      if (collectedOn) {
+        if (collectedOn > todayBogota()) throw new DomainError("La fecha del recaudo no puede ser futura.");
+        if (data.issueDate && collectedOn < data.issueDate) throw new DomainError("La fecha del recaudo no puede ser anterior a la fecha de emisión de la factura.");
+        if (project.currency !== "COP") {
+          const parsed = fxRateString.safeParse(data.collectedFxRate ?? "");
+          if (!parsed.success) throw new DomainError("Ingresa la TRM del día del recaudo: es necesaria para convertir la comisión a COP.");
+          fx = D(parsed.data);
+          if (fx.equals(1)) throw new DomainError("Una TRM de 1 no es válida para moneda extranjera. Ingresa la TRM del día del recaudo.");
+          rateExists = (await tx.get(ref(C.exchangeRates, `${project.currency}_${collectedOn}`))).exists;
+        }
+      }
+
       const number = data.number || null;
       const applyUniques = await prepareUniques(
         tx,
@@ -91,6 +107,13 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       );
 
       const t = now();
+      const collection: CollectionDoc | null = collectedOn
+        ? {
+            id: newId(), date: collectedOn as DateOnly, amountReceived: D(data.amountPreTax).toFixed(), currency: project.currency, fxRate: fx.toFixed(),
+            amountCOP: D(data.amountPreTax).mul(fx).toFixed(), isOverpaymentAdjustment: false, justification: null, notes: null,
+            voidedAt: null, voidedById: null, voidReason: null, createdAt: t, createdById: session.userId, updatedAt: t, updatedById: session.userId,
+          }
+        : null;
       const doc: InvoiceDoc = {
         id: invoiceId,
         projectId: project.id,
@@ -102,13 +125,23 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
         amountPreTax: D(data.amountPreTax).toFixed(),
         netBaseExplicit: data.netBaseExplicit ? D(data.netBaseExplicit).toFixed() : null,
         notes: data.notes || null,
-        collections: before?.collections ?? [],
-        collectionIds: before?.collectionIds ?? [],
+        collections: before?.collections ?? (collection ? [collection] : []),
+        collectionIds: before?.collectionIds ?? (collection ? [collection.id] : []),
         voidedAt: null, voidedById: null, voidReason: null,
         createdAt: before?.createdAt ?? t, createdById: before?.createdById ?? session.userId, updatedAt: t, updatedById: session.userId,
       };
       applyUniques(tx);
       tx.set(ref(C.invoices, invoiceId), doc);
+      if (collection) {
+        if (!rateExists) {
+          const rate: ExchangeRateDoc = { id: `${project.currency}_${collection.date}`, currency: project.currency as "USD" | "CLP" | "MXN", date: collection.date, rate: fx.toFixed(), source: "Registrada en un recaudo", notes: null, createdAt: t, createdById: session.userId };
+          tx.create(ref(C.exchangeRates, rate.id), rate);
+        }
+        audit(tx, {
+          entity: "Collection", entityId: collection.id, action: "CREATE", userId: session.userId, after: collection,
+          summary: `Recaudo registrado junto con la factura: ${formatMoney(data.amountPreTax, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}${project.currency !== "COP" ? ` · TRM ${fx.toFixed()}` : ""}`,
+        });
+      }
       audit(tx, {
         entity: "Invoice", entityId: invoiceId, action: id ? "UPDATE" : "CREATE",
         summary: `${id ? "Factura actualizada" : "Factura registrada"}: ${doc.number ?? "prevista"} · proyecto ${project.code}`,
@@ -116,7 +149,7 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       });
     });
     revalidateBilling(data.projectId);
-    return ok({ id: invoiceId }, id ? "Factura actualizada." : "Factura registrada.");
+    return ok({ id: invoiceId }, id ? "Factura actualizada." : data.collectedOn && data.status === "ISSUED" ? "Factura registrada y recaudada." : "Factura registrada.");
   } catch (e) {
     return toFailure(e);
   }

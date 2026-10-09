@@ -83,6 +83,25 @@ export function InvoiceFormDialog({
   const { register, control, handleSubmit, formState, setError, reset } = form;
   const e = formState.errors;
   const status = useWatch({ control, name: "status" });
+  const issueDate = useWatch({ control, name: "issueDate" });
+  const collectedOn = useWatch({ control, name: "collectedOn" });
+  const [collected, setCollected] = useState(false);
+  const foreign = project.currency !== "COP";
+
+  // Con moneda extranjera se sugiere la TRM guardada para la fecha del recaudo (si existe).
+  useEffect(() => {
+    if (!collected || !foreign || !collectedOn || !/^d{4}-d{2}-d{2}$/.test(collectedOn)) return;
+    if (form.getValues("collectedFxRate")) return;
+    lookupRateAction(project.currency, collectedOn).then((r) => {
+      if (r && !form.getValues("collectedFxRate")) form.setValue("collectedFxRate", r);
+    });
+  }, [collected, foreign, collectedOn, project.currency, form]);
+
+  function toggleCollected(on: boolean) {
+    setCollected(on);
+    form.setValue("collectedOn", on ? todayBogota() : "");
+    if (!on) form.setValue("collectedFxRate", "");
+  }
 
   async function onSubmit(values: InvoiceInput) {
     const res = await saveInvoiceAction(invoiceId ?? null, values);
@@ -93,7 +112,10 @@ export function InvoiceFormDialog({
     }
     toast.success(res.message);
     setOpen(false);
-    if (!invoiceId) reset();
+    if (!invoiceId) {
+      reset();
+      setCollected(false);
+    }
     router.refresh();
   }
 
@@ -109,7 +131,7 @@ export function InvoiceFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Estado" htmlFor="inv-status" error={e.status?.message} required>
               <Controller control={control} name="status" render={({ field }) => (
-                <SimpleSelect id="inv-status" value={field.value} onChange={field.onChange} options={[{ value: "ISSUED", label: "Emitida" }, { value: "PLANNED", label: "Prevista" }]} />
+                <SimpleSelect id="inv-status" value={field.value} onChange={(v) => { field.onChange(v); if (v !== "ISSUED") toggleCollected(false); }} options={[{ value: "ISSUED", label: "Emitida" }, { value: "PLANNED", label: "Prevista" }]} />
               )} />
             </Field>
             <Field label="Número de factura" htmlFor="inv-number" error={e.number?.message} required={status === "ISSUED"}>
@@ -131,6 +153,28 @@ export function InvoiceFormDialog({
           <Field label="Observaciones" htmlFor="inv-notes" error={e.notes?.message}>
             <Textarea id="inv-notes" rows={2} {...register("notes")} />
           </Field>
+          {!invoiceId && status === "ISSUED" && (
+            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-start gap-2.5">
+                <Checkbox id="inv-collected" checked={collected} onCheckedChange={(v) => toggleCollected(Boolean(v))} className="mt-0.5" />
+                <Label htmlFor="inv-collected" className="text-sm font-normal leading-snug">
+                  <strong>Ya está recaudada por completo.</strong> Registra también el recaudo por el valor total de la factura.
+                </Label>
+              </div>
+              {collected && (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Fecha del recaudo" htmlFor="inv-collected-on" error={e.collectedOn?.message} required>
+                    <Input id="inv-collected-on" type="date" min={issueDate || undefined} max={todayBogota()} {...register("collectedOn")} aria-invalid={!!e.collectedOn} />
+                  </Field>
+                  {foreign && (
+                    <Field label="TRM del día del recaudo" htmlFor="inv-collected-fx" error={e.collectedFxRate?.message} required hint="Pesos por unidad de la moneda.">
+                      <Controller control={control} name="collectedFxRate" render={({ field }) => <MoneyInput id="inv-collected-fx" decimals={6} value={field.value ?? ""} onChange={field.onChange} prefix="$" invalid={!!e.collectedFxRate} />} />
+                    </Field>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button type="submit" disabled={formState.isSubmitting}>{formState.isSubmitting ? "Guardando…" : "Guardar"}</Button>
