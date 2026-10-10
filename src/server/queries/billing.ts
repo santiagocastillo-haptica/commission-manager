@@ -1,7 +1,10 @@
 import { todayBogota } from "@/domain/dates";
 import { D, ZERO } from "@/domain/money";
 import { C, col, type AdjustmentDoc, type AuditDoc, type CommitmentDoc, type InvoiceDoc, type ProjectDoc } from "@/store";
+import type { InvoiceProjectRef } from "@/components/billing/dialogs";
+import type { CurrencyCode } from "@/domain/money";
 import { loadAllInvoices, loadAllProjects } from "../repo";
+import { listProjects } from "./projects";
 
 export interface CollectionRow {
   id: string;
@@ -208,4 +211,16 @@ export async function projectHistory(projectId: string): Promise<AuditRow[]> {
     if (u.exists) names.set(uid, (u.data() as { name: string }).name);
   }
   return top.map((r) => ({ id: r.id, at: r.createdAt, entity: r.entity, action: r.action, summary: r.summary, user: r.userId ? (names.get(r.userId) ?? null) : null }));
+}
+
+/** Proyectos con valor aún por facturar (para registrar facturas que faltan desde otras pantallas, p. ej. la revisión de una liquidación). */
+export async function invoiceableProjects(): Promise<(InvoiceProjectRef & { client: string })[]> {
+  const projects = await listProjects();
+  const out: (InvoiceProjectRef & { client: string })[] = [];
+  for (const p of projects) {
+    const remaining = D(p.saleAmount).minus(p.fin.scheduled);
+    if (!remaining.gt(0)) continue;
+    out.push({ id: p.id, code: p.code, client: p.client, currency: p.currency as CurrencyCode, remainingToInvoice: remaining.toFixed(), pendingInvoices: Math.max(1, p.expectedInvoices - p.fin.invoiceCount) });
+  }
+  return out;
 }

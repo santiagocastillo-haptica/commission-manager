@@ -7,7 +7,7 @@ vi.mock("@/server/auth", () => ({ requireSession: async () => ({ userId: "u1", e
 import { lookupRateAction, saveInvoiceAction } from "@/server/actions/billing";
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
-import { listInvoices } from "@/server/queries/billing";
+import { invoiceableProjects, listInvoices } from "@/server/queries/billing";
 import { bootstrapBase } from "@/store/bootstrap";
 import { C, col, type AuditDoc, type InvoiceDoc } from "@/store";
 import { clearFirestore, hasEmulator } from "../helpers/firestore";
@@ -88,5 +88,16 @@ suite("registrar una factura que ya está recaudada (un solo paso)", () => {
     if (!r.ok || !r.data) throw new Error("no se creó la factura");
     await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-15", notes: "editada" }));
     expect((await listInvoices({ projectId: "HAP-2026-001" }))[0]).toMatchObject({ collected: "0", notes: "editada" });
+  });
+
+  it("lista los proyectos que aún tienen valor por facturar (para registrar facturas faltantes desde la liquidación)", async () => {
+    await setup();
+    expect(await invoiceableProjects()).toEqual([
+      { id: "HAP-2026-001", code: "HAP-2026-001", client: "Cliente", currency: "COP", remainingToInvoice: "100000000", pendingInvoices: 2 },
+    ]);
+    await saveInvoiceAction(null, invoice({ amountPreTax: "40000000" }));
+    expect((await invoiceableProjects())[0]).toMatchObject({ remainingToInvoice: "60000000", pendingInvoices: 1 });
+    await saveInvoiceAction(null, invoice({ number: "FE-2", amountPreTax: "60000000" }));
+    expect(await invoiceableProjects()).toEqual([]); // ya facturado por completo
   });
 });

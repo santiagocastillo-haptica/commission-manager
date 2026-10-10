@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { InvoiceFormDialog, type InvoiceProjectRef } from "@/components/billing/dialogs";
+import { NewInvoiceButton } from "@/components/billing/new-invoice-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatMonthShort } from "@/domain/dates";
@@ -90,7 +92,7 @@ function RateExceptionDialog({ projectCode, a }: { projectCode: string; a: Proje
 }
 
 /** Lista de proyectos de la liquidación: cada uno se puede abrir, revisar y marcar como «está bien». */
-export function ProjectReviewPanel({ code, projects, readOnly }: { code: string; projects: ProjectReviewView[]; readOnly: boolean }) {
+export function ProjectReviewPanel({ code, projects, readOnly, invoiceable }: { code: string; projects: ProjectReviewView[]; readOnly: boolean; invoiceable: (InvoiceProjectRef & { client: string })[] }) {
   const router = useRouter();
   const [filter, setFilter] = useState<"all" | "pending" | "accepted">("all");
   const [state, setState] = useState<Record<string, ProjectReviewView["review"]>>({});
@@ -108,7 +110,14 @@ export function ProjectReviewPanel({ code, projects, readOnly }: { code: string;
     router.refresh();
   }
 
-  if (projects.length === 0) return null;
+  if (projects.length === 0) {
+    return readOnly ? null : (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-sm font-bold">Revisión por proyecto</h3>
+        <NewInvoiceButton projects={invoiceable} />
+      </div>
+    );
+  }
   const filters = [
     ["all", `Todos (${projects.length})`],
     ["pending", `Pendientes (${projects.length - accepted})`],
@@ -119,12 +128,13 @@ export function ProjectReviewPanel({ code, projects, readOnly }: { code: string;
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-sm font-bold">Revisión por proyecto</h3>
-        <div className="flex gap-1.5" role="group" aria-label="Filtrar proyectos">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar proyectos">
           {filters.map(([k, label]) => (
             <Button key={k} size="xs" variant={filter === k ? "default" : "outline"} onClick={() => setFilter(k)}>
               {label}
             </Button>
           ))}
+          {!readOnly && invoiceable.length > 0 && <NewInvoiceButton projects={invoiceable} />}
         </div>
       </div>
       <div aria-live="polite">
@@ -184,6 +194,19 @@ export function ProjectReviewPanel({ code, projects, readOnly }: { code: string;
                   </li>
                 ))}
               </ul>
+              {!readOnly && invoiceable.some((x) => x.id === p.projectId) && (
+                <div className="border-t px-4 py-2">
+                  <InvoiceFormDialog
+                    key={p.projectId}
+                    project={invoiceable.find((x) => x.id === p.projectId)!}
+                    trigger={
+                      <Button size="xs" variant="outline">
+                        Agregar una factura faltante a este proyecto
+                      </Button>
+                    }
+                  />
+                </div>
+              )}
               {st === "ACCEPTED" && p.acceptedAt && (
                 <p className="px-4 pb-2 text-xs text-muted-foreground">
                   Aceptado{p.acceptedBy ? ` por ${p.acceptedBy}` : ""} el {new Date(p.acceptedAt).toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "medium", timeStyle: "short" })}.

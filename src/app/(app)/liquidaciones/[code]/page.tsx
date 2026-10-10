@@ -10,6 +10,7 @@ import { formatDate, formatMonthShort } from "@/domain/dates";
 import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money";
 import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth";
+import { invoiceableProjects } from "@/server/queries/billing";
 import { getSettlementView, parseSettlementCode, type AlertView, type CollaboratorView, type SettlementView } from "@/server/queries/settlements";
 import { ProjectReviewPanel } from "./review-panel";
 import { ApprovePanel, CalculateButton, DiscardButton, PaymentDialog } from "./wizard-client";
@@ -92,7 +93,7 @@ export default async function SettlementWizardPage({ params, searchParams }: Pag
 
       {step === 1 && <StepPeriod view={view} />}
       {step === 2 && <StepCalculate view={view} year={parsed.year} half={parsed.half} />}
-      {step === 3 && <StepReview view={view} year={parsed.year} half={parsed.half} />}
+      {step === 3 && <StepReview view={view} year={parsed.year} half={parsed.half} invoiceable={view.status === "APPROVED" ? [] : await invoiceableProjects()} />}
       {step === 4 && <StepApprove view={view} />}
       {step === 5 && <StepReports view={view} />}
       {step === 6 && <StepPayments view={view} />}
@@ -216,7 +217,7 @@ function LinesTable({ c }: { c: CollaboratorView }) {
   );
 }
 
-function StepReview({ view, year, half }: { view: SettlementView; year: number; half: "APRIL" | "OCTOBER" }) {
+function StepReview({ view, year, half, invoiceable }: { view: SettlementView; year: number; half: "APRIL" | "OCTOBER"; invoiceable: Awaited<ReturnType<typeof invoiceableProjects>> }) {
   const approved = view.status === "APPROVED";
   const lines = view.collaborators.reduce((a, c) => a + c.lines.length, 0);
   return (
@@ -245,7 +246,7 @@ function StepReview({ view, year, half }: { view: SettlementView; year: number; 
         <p className="mt-2 text-xs text-muted-foreground">Corrige las inconsistencias en el proyecto, la factura o el recaudo y vuelve a calcular. Las advertencias se reconocen al aprobar; las bloqueantes impiden el cierre.</p>
       </div>
 
-      <ProjectReviewPanel code={view.period.code} projects={view.projects} readOnly={approved} />
+      <ProjectReviewPanel code={view.period.code} projects={view.projects} readOnly={approved} invoiceable={invoiceable} />
 
       <div className="space-y-3">
         <h3 className="text-sm font-bold">Resultado por colaborador</h3>
