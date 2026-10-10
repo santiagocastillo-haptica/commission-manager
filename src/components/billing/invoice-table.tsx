@@ -21,6 +21,21 @@ function invoiceState(i: InvoiceRow) {
   return <Badge variant="info">Pendiente de recaudo</Badge>;
 }
 
+/** Recaudo único por el valor total de la factura (el que se puede cambiar desde el formulario de la factura). */
+function singleFullCollection(i: InvoiceRow) {
+  const live = i.collections.filter((c) => !c.voided);
+  return live.length === 1 && D(live[0].amountReceived).equals(i.amountPreTax) ? live[0] : null;
+}
+
+/** Motivo por el que la fecha de recaudo no se edita desde el formulario de la factura (o undefined si sí se puede). */
+function collectionLock(i: InvoiceRow): string | undefined {
+  const live = i.collections.filter((c) => !c.voided);
+  if (live.length === 0) return undefined;
+  if (!singleFullCollection(i)) return "Tiene recaudos parciales: gestiónalos con el botón «Recaudo».";
+  if (live[0].locked) return "El recaudo ya fue liquidado y no se puede modificar.";
+  return undefined;
+}
+
 export function InvoiceTable({
   invoices,
   projects,
@@ -92,8 +107,9 @@ export function InvoiceTable({
                         <InvoiceFormDialog
                           project={project}
                           invoiceId={i.id}
+                          collectionLocked={collectionLock(i)}
                           initial={{
-                            projectId: i.projectId, number: i.number ?? "", status: i.status, issueDate: i.issueDate ?? "", dueDate: i.dueDate ?? "",
+                            projectId: i.projectId, number: i.number ?? "", status: i.status, issueDate: i.issueDate ?? "", dueDate: i.dueDate ?? "", collectedOn: singleFullCollection(i)?.date ?? "",
                             amountPreTax: i.amountPreTax, netBaseExplicit: i.netBaseExplicit ?? "", notes: i.notes ?? "",
                           }}
                           trigger={<Button size="icon-xs" variant="outline" aria-label="Editar factura"><Pencil /></Button>}

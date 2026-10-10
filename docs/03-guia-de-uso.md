@@ -10,7 +10,7 @@ Pensada para la persona de finanzas y administración. Cada tarea indica dónde 
 5. Indica cuántas facturas se emitirán. A la derecha ves cuánto aporta el proyecto a la meta del mes.
 
 ## 2. Facturas y recaudos (Facturas y recaudos, o dentro del proyecto)
-- **Registrar factura:** número, fecha de emisión, valor antes de IVA. Puedes dejar facturas *previstas* sin número. Si la factura ya fue cobrada por completo, marca **«Ya está recaudada por completo»** e indica la fecha del recaudo (y la TRM si es moneda extranjera): se crea el recaudo junto con la factura, en una sola operación.
+- **Registrar factura:** número, fecha de emisión, valor antes de IVA. Puedes dejar facturas *previstas* sin número. El formulario trae la **Fecha de recaudo** (en lugar del vencimiento): si la factura ya fue cobrada por completo, indica el día (y la TRM si es moneda extranjera) y se crea el recaudo por el valor total junto con la factura. Al editar, cambiarla mueve la fecha de ese recaudo único; con recaudos parciales o ya liquidados se gestiona con el botón «Recaudo».
 - **Recaudo:** botón «Recaudo» en la factura. Valor **sin IVA**, fecha efectiva y, si es moneda extranjera, la **TRM del día del recaudo** (se autocompleta si ya la registraste en Configuración). No se puede recaudar más de lo facturado salvo ajuste justificado.
 - Los recaudos ya liquidados quedan bloqueados (candado). Para corregirlos se registra un **ajuste**.
 

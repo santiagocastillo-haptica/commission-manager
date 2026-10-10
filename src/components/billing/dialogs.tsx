@@ -46,6 +46,7 @@ export function InvoiceFormDialog({
   project,
   invoiceId,
   initial,
+  collectionLocked,
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -53,6 +54,8 @@ export function InvoiceFormDialog({
   project: InvoiceProjectRef;
   invoiceId?: string;
   initial?: Partial<InvoiceInput>;
+  /** Si la fecha de recaudo no se puede cambiar aquí (recaudos parciales o ya liquidado), el motivo. */
+  collectionLocked?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -74,6 +77,7 @@ export function InvoiceFormDialog({
       status: "ISSUED",
       issueDate: todayBogota(),
       dueDate: "",
+      collectedOn: "",
       amountPreTax: suggested,
       netBaseExplicit: "",
       notes: "",
@@ -85,23 +89,16 @@ export function InvoiceFormDialog({
   const status = useWatch({ control, name: "status" });
   const issueDate = useWatch({ control, name: "issueDate" });
   const collectedOn = useWatch({ control, name: "collectedOn" });
-  const [collected, setCollected] = useState(false);
   const foreign = project.currency !== "COP";
 
   // Con moneda extranjera se sugiere la TRM guardada para la fecha del recaudo (si existe).
   useEffect(() => {
-    if (!collected || !foreign || !collectedOn || !/^d{4}-d{2}-d{2}$/.test(collectedOn)) return;
+    if (!foreign || collectionLocked || !collectedOn || !/^\d{4}-\d{2}-\d{2}$/.test(collectedOn)) return;
     if (form.getValues("collectedFxRate")) return;
     lookupRateAction(project.currency, collectedOn).then((r) => {
       if (r && !form.getValues("collectedFxRate")) form.setValue("collectedFxRate", r);
     });
-  }, [collected, foreign, collectedOn, project.currency, form]);
-
-  function toggleCollected(on: boolean) {
-    setCollected(on);
-    form.setValue("collectedOn", on ? todayBogota() : "");
-    if (!on) form.setValue("collectedFxRate", "");
-  }
+  }, [foreign, collectionLocked, collectedOn, project.currency, form]);
 
   async function onSubmit(values: InvoiceInput) {
     const res = await saveInvoiceAction(invoiceId ?? null, values);
@@ -112,10 +109,7 @@ export function InvoiceFormDialog({
     }
     toast.success(res.message);
     setOpen(false);
-    if (!invoiceId) {
-      reset();
-      setCollected(false);
-    }
+    if (!invoiceId) reset();
     router.refresh();
   }
 
@@ -131,7 +125,7 @@ export function InvoiceFormDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Estado" htmlFor="inv-status" error={e.status?.message} required>
               <Controller control={control} name="status" render={({ field }) => (
-                <SimpleSelect id="inv-status" value={field.value} onChange={(v) => { field.onChange(v); if (v !== "ISSUED") toggleCollected(false); }} options={[{ value: "ISSUED", label: "Emitida" }, { value: "PLANNED", label: "Prevista" }]} />
+                <SimpleSelect id="inv-status" value={field.value} onChange={(v) => { field.onChange(v); if (v !== "ISSUED") { form.setValue("collectedOn", ""); form.setValue("collectedFxRate", ""); } }} options={[{ value: "ISSUED", label: "Emitida" }, { value: "PLANNED", label: "Prevista" }]} />
               )} />
             </Field>
             <Field label="Número de factura" htmlFor="inv-number" error={e.number?.message} required={status === "ISSUED"}>
@@ -140,8 +134,13 @@ export function InvoiceFormDialog({
             <Field label="Fecha de emisión" htmlFor="inv-issue" error={e.issueDate?.message} required={status === "ISSUED"}>
               <Input id="inv-issue" type="date" {...register("issueDate")} aria-invalid={!!e.issueDate} />
             </Field>
-            <Field label="Vencimiento" htmlFor="inv-due" error={e.dueDate?.message} hint="Opcional">
-              <Input id="inv-due" type="date" {...register("dueDate")} aria-invalid={!!e.dueDate} />
+            <Field
+              label="Fecha de recaudo"
+              htmlFor="inv-collected-on"
+              error={e.collectedOn?.message}
+              hint={collectionLocked ?? (invoiceId ? "Cámbiala si el recaudo total ocurrió otro día." : "Opcional. Si la factura ya fue cobrada por completo, indica el día: se registra el recaudo por el valor total.")}
+            >
+              <Input id="inv-collected-on" type="date" min={issueDate || undefined} max={todayBogota()} disabled={status !== "ISSUED" || Boolean(collectionLocked)} {...register("collectedOn")} aria-invalid={!!e.collectedOn} />
             </Field>
           </div>
           <Field label="Valor facturado antes de impuestos" htmlFor="inv-amount" error={e.amountPreTax?.message} required hint={suggested ? "Sugerido: saldo por facturar dividido entre las facturas pendientes." : undefined}>
@@ -153,27 +152,10 @@ export function InvoiceFormDialog({
           <Field label="Observaciones" htmlFor="inv-notes" error={e.notes?.message}>
             <Textarea id="inv-notes" rows={2} {...register("notes")} />
           </Field>
-          {!invoiceId && status === "ISSUED" && (
-            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
-              <div className="flex items-start gap-2.5">
-                <Checkbox id="inv-collected" checked={collected} onCheckedChange={(v) => toggleCollected(Boolean(v))} className="mt-0.5" />
-                <Label htmlFor="inv-collected" className="text-sm font-normal leading-snug">
-                  <strong>Ya está recaudada por completo.</strong> Registra también el recaudo por el valor total de la factura.
-                </Label>
-              </div>
-              {collected && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Fecha del recaudo" htmlFor="inv-collected-on" error={e.collectedOn?.message} required>
-                    <Input id="inv-collected-on" type="date" min={issueDate || undefined} max={todayBogota()} {...register("collectedOn")} aria-invalid={!!e.collectedOn} />
-                  </Field>
-                  {foreign && (
-                    <Field label="TRM del día del recaudo" htmlFor="inv-collected-fx" error={e.collectedFxRate?.message} required hint="Pesos por unidad de la moneda.">
-                      <Controller control={control} name="collectedFxRate" render={({ field }) => <MoneyInput id="inv-collected-fx" decimals={6} value={field.value ?? ""} onChange={field.onChange} prefix="$" invalid={!!e.collectedFxRate} />} />
-                    </Field>
-                  )}
-                </div>
-              )}
-            </div>
+          {foreign && status === "ISSUED" && collectedOn && !collectionLocked && (
+            <Field label="TRM del día del recaudo" htmlFor="inv-collected-fx" error={e.collectedFxRate?.message} required={!invoiceId} hint="Pesos por unidad de la moneda.">
+              <Controller control={control} name="collectedFxRate" render={({ field }) => <MoneyInput id="inv-collected-fx" decimals={6} value={field.value ?? ""} onChange={field.onChange} prefix="$" invalid={!!e.collectedFxRate} />} />
+            </Field>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>

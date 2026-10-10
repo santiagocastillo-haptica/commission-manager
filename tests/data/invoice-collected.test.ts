@@ -82,12 +82,55 @@ suite("registrar una factura que ya está recaudada (un solo paso)", () => {
     expect(await lookupRateAction("USD", "2026-06-15")).toBe("4100.5");
   });
 
-  it("al editar una factura existente no se crea ningún recaudo aunque se envíe la fecha", async () => {
+  it("al editar: la fecha de recaudo crea el recaudo total si no había, y luego solo cambia su fecha", async () => {
     await setup();
     const r = await saveInvoiceAction(null, invoice());
     if (!r.ok || !r.data) throw new Error("no se creó la factura");
-    await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-15", notes: "editada" }));
-    expect((await listInvoices({ projectId: "HAP-2026-001" }))[0]).toMatchObject({ collected: "0", notes: "editada" });
+    // sin recaudo previo → se crea por el valor total
+    expect(await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-15" }))).toMatchObject({ ok: true, message: "Factura y fecha de recaudo actualizadas." });
+    let [row] = await listInvoices({ projectId: "HAP-2026-001" });
+    expect(row.collections.filter((c) => !c.voided)).toHaveLength(1);
+    expect(row).toMatchObject({ collected: "60000000", balance: "0" });
+    const collectionId = row.collections[0].id;
+    // con el mismo recaudo: cambiar la fecha lo mueve (no duplica)
+    expect((await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-20", notes: "otra fecha" }))).ok).toBe(true);
+    [row] = await listInvoices({ projectId: "HAP-2026-001" });
+    expect(row.collections).toHaveLength(1);
+    expect(row.collections[0]).toMatchObject({ id: collectionId, date: "2026-06-20", amountReceived: "60000000" });
+    expect(row.notes).toBe("otra fecha");
+    // la misma fecha no cambia nada; sin fecha tampoco toca el recaudo
+    expect((await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-20" }))).ok).toBe(true);
+    expect((await saveInvoiceAction(r.data.id, invoice({ notes: "sin fecha" }))).ok).toBe(true);
+    expect((await listInvoices({ projectId: "HAP-2026-001" }))[0].collections[0]).toMatchObject({ id: collectionId, date: "2026-06-20" });
+    // validaciones al mover: no anterior a la emisión, no futura
+    expect((await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-05-01" }))).ok).toBe(false);
+    expect((await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2999-01-01" }))).ok).toBe(false);
+    const audits = (await col(C.auditLog).get()).docs.map((d) => d.data() as AuditDoc).filter((x) => x.entity === "Collection");
+    expect(audits.map((x) => x.action).sort()).toEqual(["CREATE", "UPDATE"]);
+  });
+
+  it("con recaudos parciales la fecha no se edita desde la factura", async () => {
+    await setup();
+    const r = await saveInvoiceAction(null, invoice({ collectedOn: "2026-06-15", amountPreTax: "60000000" }));
+    if (!r.ok || !r.data) throw new Error("no se creó la factura");
+    const doc = (await col(C.invoices).get()).docs[0];
+    const inv = doc.data() as InvoiceDoc;
+    // simula un recaudo parcial adicional: dos recaudos vivos
+    await doc.ref.set({ ...inv, collections: [{ ...inv.collections[0], amountReceived: "30000000", amountCOP: "30000000" }, { ...inv.collections[0], id: "c2", amountReceived: "30000000", amountCOP: "30000000" }], collectionIds: [inv.collections[0].id, "c2"] });
+    const res = await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-30" }));
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/recaudos parciales/);
+  });
+
+  it("un recaudo ya liquidado no se mueve desde la factura", async () => {
+    await setup();
+    const r = await saveInvoiceAction(null, invoice({ collectedOn: "2026-06-15" }));
+    if (!r.ok || !r.data) throw new Error("no se creó la factura");
+    const inv = (await col(C.invoices).get()).docs[0].data() as InvoiceDoc;
+    await col(C.commitments).doc("k1").set({ id: "k1", type: "COLLECTION", collectionId: inv.collections[0].id, adjustmentId: null, assignmentId: "a", invoiceId: inv.id, projectId: "HAP-2026-001", collaboratorId: "c", settlementCode: "S", lineId: "l", commissionCOP: "1", committedAt: "x" });
+    const res = await saveInvoiceAction(r.data.id, invoice({ collectedOn: "2026-06-30" }));
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toMatch(/ya fue liquidado/);
   });
 
   it("lista los proyectos que aún tienen valor por facturar (para registrar facturas faltantes desde la liquidación)", async () => {

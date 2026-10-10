@@ -83,17 +83,39 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
         }
       }
 
-      // Opción «ya está recaudada»: solo al registrar una factura emitida nueva; crea el recaudo por el valor total.
-      const collectedOn = !id && data.status === "ISSUED" ? (data.collectedOn || null) : null;
-      let fx = D(1);
+      // Fecha de recaudo (opcional): la factura quedó cobrada por completo ese día.
+      //  · sin recaudos vigentes → se crea el recaudo por el valor total;
+      //  · con un único recaudo por el valor total → solo se cambia su fecha (si no está liquidado);
+      //  · con recaudos parciales → se gestionan con «Recaudo».
+      const liveBefore = before ? liveCollections(before) : [];
+      const wanted = data.status === "ISSUED" ? data.collectedOn || null : null;
+      let collectedOn: string | null = null;
+      let move: CollectionDoc | null = null;
+      if (wanted) {
+        if (liveBefore.length === 0) collectedOn = wanted;
+        else if (liveBefore.length === 1 && D(liveBefore[0].amountReceived).equals(data.amountPreTax)) {
+          if (liveBefore[0].date !== wanted) {
+            collectedOn = wanted;
+            move = liveBefore[0];
+          }
+        } else {
+          throw new DomainError("La factura tiene recaudos parciales: gestiónalos con el botón «Recaudo». La fecha de recaudo de este formulario solo aplica a un recaudo único por el valor total.");
+        }
+      }
+      let fx = move ? D(move.fxRate) : D(1);
       let rateExists = true;
       if (collectedOn) {
         if (collectedOn > todayBogota()) throw new DomainError("La fecha del recaudo no puede ser futura.");
         if (data.issueDate && collectedOn < data.issueDate) throw new DomainError("La fecha del recaudo no puede ser anterior a la fecha de emisión de la factura.");
+        if (move && (await isSettled(tx, "collectionId", move.id))) throw new DomainError("Ese recaudo ya fue liquidado y es inmutable. Para corregirlo registra un ajuste.");
         if (project.currency !== "COP") {
-          const parsed = fxRateString.safeParse(data.collectedFxRate ?? "");
-          if (!parsed.success) throw new DomainError("Ingresa la TRM del día del recaudo: es necesaria para convertir la comisión a COP.");
-          fx = D(parsed.data);
+          if (data.collectedFxRate) {
+            const parsed = fxRateString.safeParse(data.collectedFxRate);
+            if (!parsed.success) throw new DomainError("Ingresa la TRM del día del recaudo: es necesaria para convertir la comisión a COP.");
+            fx = D(parsed.data);
+          } else if (!move) {
+            throw new DomainError("Ingresa la TRM del día del recaudo: es necesaria para convertir la comisión a COP.");
+          }
           if (fx.equals(1)) throw new DomainError("Una TRM de 1 no es válida para moneda extranjera. Ingresa la TRM del día del recaudo.");
           rateExists = (await tx.get(ref(C.exchangeRates, `${project.currency}_${collectedOn}`))).exists;
         }
@@ -107,13 +129,19 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       );
 
       const t = now();
-      const collection: CollectionDoc | null = collectedOn
-        ? {
-            id: newId(), date: collectedOn as DateOnly, amountReceived: D(data.amountPreTax).toFixed(), currency: project.currency, fxRate: fx.toFixed(),
-            amountCOP: D(data.amountPreTax).mul(fx).toFixed(), isOverpaymentAdjustment: false, justification: null, notes: null,
-            voidedAt: null, voidedById: null, voidReason: null, createdAt: t, createdById: session.userId, updatedAt: t, updatedById: session.userId,
-          }
-        : null;
+      const collection: CollectionDoc | null =
+        collectedOn && !move
+          ? {
+              id: newId(), date: collectedOn as DateOnly, amountReceived: D(data.amountPreTax).toFixed(), currency: project.currency, fxRate: fx.toFixed(),
+              amountCOP: D(data.amountPreTax).mul(fx).toFixed(), isOverpaymentAdjustment: false, justification: null, notes: null,
+              voidedAt: null, voidedById: null, voidReason: null, createdAt: t, createdById: session.userId, updatedAt: t, updatedById: session.userId,
+            }
+          : null;
+      const moved: CollectionDoc | null =
+        collectedOn && move
+          ? { ...move, date: collectedOn as DateOnly, fxRate: fx.toFixed(), amountCOP: D(move.amountReceived).mul(fx).toFixed(), updatedAt: t, updatedById: session.userId }
+          : null;
+      const allCollections = moved ? (before?.collections ?? []).map((c) => (c.id === moved.id ? moved : c)) : [...(before?.collections ?? []), ...(collection ? [collection] : [])];
       const doc: InvoiceDoc = {
         id: invoiceId,
         projectId: project.id,
@@ -125,21 +153,24 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
         amountPreTax: D(data.amountPreTax).toFixed(),
         netBaseExplicit: data.netBaseExplicit ? D(data.netBaseExplicit).toFixed() : null,
         notes: data.notes || null,
-        collections: before?.collections ?? (collection ? [collection] : []),
-        collectionIds: before?.collectionIds ?? (collection ? [collection.id] : []),
+        collections: allCollections,
+        collectionIds: allCollections.map((c) => c.id),
         voidedAt: null, voidedById: null, voidReason: null,
         createdAt: before?.createdAt ?? t, createdById: before?.createdById ?? session.userId, updatedAt: t, updatedById: session.userId,
       };
       applyUniques(tx);
       tx.set(ref(C.invoices, invoiceId), doc);
-      if (collection) {
+      const recorded = collection ?? moved;
+      if (recorded) {
         if (!rateExists) {
-          const rate: ExchangeRateDoc = { id: `${project.currency}_${collection.date}`, currency: project.currency as "USD" | "CLP" | "MXN", date: collection.date, rate: fx.toFixed(), source: "Registrada en un recaudo", notes: null, createdAt: t, createdById: session.userId };
+          const rate: ExchangeRateDoc = { id: `${project.currency}_${recorded.date}`, currency: project.currency as "USD" | "CLP" | "MXN", date: recorded.date, rate: fx.toFixed(), source: "Registrada en un recaudo", notes: null, createdAt: t, createdById: session.userId };
           tx.create(ref(C.exchangeRates, rate.id), rate);
         }
         audit(tx, {
-          entity: "Collection", entityId: collection.id, action: "CREATE", userId: session.userId, after: collection,
-          summary: `Recaudo registrado junto con la factura: ${formatMoney(data.amountPreTax, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}${project.currency !== "COP" ? ` · TRM ${fx.toFixed()}` : ""}`,
+          entity: "Collection", entityId: recorded.id, action: moved ? "UPDATE" : "CREATE", userId: session.userId, before: move ?? undefined, after: recorded,
+          summary: moved
+            ? `Fecha del recaudo cambiada a ${recorded.date} (antes ${move!.date}) · factura ${doc.number} · proyecto ${project.code}`
+            : `Recaudo registrado junto con la factura: ${formatMoney(data.amountPreTax, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}${project.currency !== "COP" ? ` · TRM ${fx.toFixed()}` : ""}`,
         });
       }
       audit(tx, {
@@ -149,7 +180,7 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       });
     });
     revalidateBilling(data.projectId);
-    return ok({ id: invoiceId }, id ? "Factura actualizada." : data.collectedOn && data.status === "ISSUED" ? "Factura registrada y recaudada." : "Factura registrada.");
+    return ok({ id: invoiceId }, id ? (data.collectedOn && data.status === "ISSUED" ? "Factura y fecha de recaudo actualizadas." : "Factura actualizada.") : data.collectedOn && data.status === "ISSUED" ? "Factura registrada y recaudada." : "Factura registrada.");
   } catch (e) {
     return toFailure(e);
   }
