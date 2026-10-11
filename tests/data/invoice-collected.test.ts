@@ -109,6 +109,34 @@ suite("registrar una factura que ya está recaudada (un solo paso)", () => {
     expect(audits.map((x) => x.action).sort()).toEqual(["CREATE", "UPDATE"]);
   });
 
+  it("bajar el valor de una factura con un único recaudo total ajusta el recaudo (conserva su fecha) y deja el saldo en cero", async () => {
+    await setup();
+    const r = await saveInvoiceAction(null, invoice({ number: "FV2648", amountPreTax: "60000000", collectedOn: "2026-06-10" }));
+    if (!r.ok || !r.data) throw new Error("no se creó la factura");
+    const res = await saveInvoiceAction(r.data.id, invoice({ number: "FV2648", amountPreTax: "30000000", collectedOn: "2026-06-10" }));
+    expect(res.ok).toBe(true);
+    const [row] = await listInvoices({ projectId: "HAP-2026-001" });
+    expect(row).toMatchObject({ amountPreTax: "30000000", collected: "30000000", balance: "0" });
+    expect(row.collections).toHaveLength(1);
+    expect(row.collections[0]).toMatchObject({ date: "2026-06-10", amountReceived: "30000000", amountCOP: "30000000" });
+    // ahora queda espacio en la venta para registrar la factura que faltaba (cubierta por completo)
+    expect((await saveInvoiceAction(null, invoice({ number: "FV2530", amountPreTax: "30000000", issueDate: "2026-05-20", collectedOn: "2026-06-25" }))).ok).toBe(true);
+    expect((await listInvoices({ projectId: "HAP-2026-001" })).map((i) => i.number).sort()).toEqual(["FV2530", "FV2648"]);
+    const audits = (await col(C.auditLog).get()).docs.map((d) => d.data() as AuditDoc).filter((x) => x.entity === "Collection" && x.action === "UPDATE");
+    expect(audits[0].summary).toMatch(/Recaudo ajustado/);
+  });
+
+  it("con un recaudo parcial no se puede bajar el valor por debajo de lo recaudado", async () => {
+    await setup();
+    const r = await saveInvoiceAction(null, invoice({ number: "FV1", amountPreTax: "60000000" }));
+    if (!r.ok || !r.data) throw new Error("no se creó la factura");
+    const doc = (await col(C.invoices).get()).docs[0];
+    const inv = doc.data() as InvoiceDoc;
+    const part = { ...inv.collections[0], id: "p1", date: "2026-06-01", amountReceived: "20000000", currency: "COP" as const, fxRate: "1", amountCOP: "20000000", isOverpaymentAdjustment: false, justification: null, notes: null, voidedAt: null, voidedById: null, voidReason: null, createdAt: "x", updatedAt: "x", createdById: null, updatedById: null };
+    await doc.ref.set({ ...inv, collections: [part], collectionIds: ["p1"] });
+    expect((await saveInvoiceAction(r.data.id, invoice({ number: "FV1", amountPreTax: "10000000" }))).ok).toBe(false);
+  });
+
   it("con recaudos parciales la fecha no se edita desde la factura", async () => {
     await setup();
     const r = await saveInvoiceAction(null, invoice({ collectedOn: "2026-06-15", amountPreTax: "60000000" }));

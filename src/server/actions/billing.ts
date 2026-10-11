@@ -62,9 +62,12 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
         throw new DomainError(`La suma de las facturas supera el valor de la venta. Disponible para facturar: ${formatMoney(left, project.currency as CurrencyCode)}.`);
       }
 
+      const liveBefore = before ? liveCollections(before) : [];
+      // Un único recaudo por el valor total de la factura: se ajusta junto con ella (no es un recaudo parcial).
+      const fullSingle = Boolean(before) && liveBefore.length === 1 && D(liveBefore[0].amountReceived).equals(before!.amountPreTax);
       if (before) {
-        const collected = sumReceived(liveCollections(before));
-        if (D(data.amountPreTax).lt(collected)) {
+        const collected = sumReceived(liveBefore);
+        if (!(fullSingle && data.status === "ISSUED") && D(data.amountPreTax).lt(collected)) {
           throw new DomainError(`La factura ya tiene recaudos por ${formatMoney(collected, project.currency as CurrencyCode)}; el valor no puede ser menor.`);
         }
         if (data.status === "PLANNED" && before.collections.some((c) => !c.voidedAt)) {
@@ -87,20 +90,21 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       //  · sin recaudos vigentes → se crea el recaudo por el valor total;
       //  · con un único recaudo por el valor total → solo se cambia su fecha (si no está liquidado);
       //  · con recaudos parciales → se gestionan con «Recaudo».
-      const liveBefore = before ? liveCollections(before) : [];
       const wanted = data.status === "ISSUED" ? data.collectedOn || null : null;
+      const amountChanged = Boolean(before) && !D(before!.amountPreTax).equals(data.amountPreTax);
       let collectedOn: string | null = null;
       let move: CollectionDoc | null = null;
-      if (wanted) {
-        if (liveBefore.length === 0) collectedOn = wanted;
-        else if (liveBefore.length === 1 && D(liveBefore[0].amountReceived).equals(data.amountPreTax)) {
-          if (liveBefore[0].date !== wanted) {
-            collectedOn = wanted;
-            move = liveBefore[0];
-          }
-        } else {
-          throw new DomainError("La factura tiene recaudos parciales: gestiónalos con el botón «Recaudo». La fecha de recaudo de este formulario solo aplica a un recaudo único por el valor total.");
+      if (liveBefore.length === 0) {
+        if (wanted) collectedOn = wanted;
+      } else if (fullSingle && data.status === "ISSUED") {
+        // Cambia la fecha y/o el valor del recaudo único para que siga cubriendo la factura completa.
+        const date = wanted ?? liveBefore[0].date;
+        if (date !== liveBefore[0].date || amountChanged) {
+          collectedOn = date;
+          move = liveBefore[0];
         }
+      } else if (wanted) {
+        throw new DomainError("La factura tiene recaudos parciales: gestiónalos con el botón «Recaudo». La fecha de recaudo de este formulario solo aplica a un recaudo único por el valor total.");
       }
       let fx = move ? D(move.fxRate) : D(1);
       let rateExists = true;
@@ -139,7 +143,7 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
           : null;
       const moved: CollectionDoc | null =
         collectedOn && move
-          ? { ...move, date: collectedOn as DateOnly, fxRate: fx.toFixed(), amountCOP: D(move.amountReceived).mul(fx).toFixed(), updatedAt: t, updatedById: session.userId }
+          ? { ...move, date: collectedOn as DateOnly, amountReceived: D(data.amountPreTax).toFixed(), fxRate: fx.toFixed(), amountCOP: D(data.amountPreTax).mul(fx).toFixed(), updatedAt: t, updatedById: session.userId }
           : null;
       const allCollections = moved ? (before?.collections ?? []).map((c) => (c.id === moved.id ? moved : c)) : [...(before?.collections ?? []), ...(collection ? [collection] : [])];
       const doc: InvoiceDoc = {
@@ -169,7 +173,7 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
         audit(tx, {
           entity: "Collection", entityId: recorded.id, action: moved ? "UPDATE" : "CREATE", userId: session.userId, before: move ?? undefined, after: recorded,
           summary: moved
-            ? `Fecha del recaudo cambiada a ${recorded.date} (antes ${move!.date}) · factura ${doc.number} · proyecto ${project.code}`
+            ? `Recaudo ajustado: ${move!.date} → ${recorded.date}, ${formatMoney(move!.amountReceived, project.currency as CurrencyCode)} → ${formatMoney(recorded.amountReceived, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}`
             : `Recaudo registrado junto con la factura: ${formatMoney(data.amountPreTax, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}${project.currency !== "COP" ? ` · TRM ${fx.toFixed()}` : ""}`,
         });
       }
