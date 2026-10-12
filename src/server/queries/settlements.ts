@@ -333,7 +333,7 @@ export function projectFingerprint(lines: { netBaseCOP: string; commissionCOP: s
   return `${lines.length}|${base.toFixed(2)}|${total.toFixed(2)}`;
 }
 
-export async function projectReviews(collaborators: CollaboratorView[], code: string): Promise<ProjectReviewView[]> {
+export async function projectReviews(collaborators: CollaboratorView[], code: string, approved = false): Promise<ProjectReviewView[]> {
   const snap = await ref(C.settlementReviews, code).get();
   const doc = snap.exists ? (snap.data() as SettlementReviewDoc) : null;
   const groups = new Map<string, ProjectReviewView>();
@@ -365,7 +365,8 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
     g.total = g.lines.reduce((a, l) => a.plus(l.commissionCOP), ZERO).toFixed();
     const entry = doc?.projects[g.projectCode];
     if (entry) {
-      g.review = entry.fingerprint === g.fingerprint ? "ACCEPTED" : "STALE";
+      // En una liquidación aprobada ya no hay nada que revisar: lo aceptado queda como constancia.
+      g.review = approved || entry.fingerprint === g.fingerprint ? "ACCEPTED" : "STALE";
       g.acceptedAt = entry.acceptedAt;
       if (entry.acceptedById && !names.has(entry.acceptedById)) names.set(entry.acceptedById, await userName(entry.acceptedById));
       g.acceptedBy = entry.acceptedById ? (names.get(entry.acceptedById) ?? null) : null;
@@ -376,5 +377,5 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
 
 export async function getSettlementView(year: number, half: SettlementHalf): Promise<SettlementView> {
   const view = await buildSettlementView(year, half);
-  return { ...view, projects: await projectReviews(view.collaborators, view.period.code) };
+  return { ...view, projects: await projectReviews(view.collaborators, view.period.code, view.status === "APPROVED") };
 }
