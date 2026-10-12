@@ -29,6 +29,8 @@ export interface LineView {
   netBaseCOP: string;
   commissionCOP: string;
   isLate: boolean;
+  /** Línea de bonificación (solo se conoce en liquidaciones aprobadas). */
+  bonus?: boolean;
 }
 
 export interface PaymentView {
@@ -175,7 +177,7 @@ async function buildSettlementView(year: number, half: SettlementHalf): Promise<
           return {
             key: l.id, assignmentId: l.assignmentId, type: l.type, projectId: l.projectId, projectCode: sn.projectCode, saleMonth: sn.saleMonth,
             invoiceNumber: sn.invoiceNumber, collectionDate: sn.collectionDate, amountReceived: sn.amountReceived, currency: l.currency, fxRate: D(l.fxRate).toFixed(),
-            baseRate: D(l.baseRate).toFixed(), effectiveRate: D(l.effectiveRate).toFixed(), netBaseCOP: D(l.netBaseCOP).toFixed(), commissionCOP: D(l.commissionCOP).toFixed(), isLate: l.isLate,
+            baseRate: D(l.baseRate).toFixed(), effectiveRate: D(l.effectiveRate).toFixed(), netBaseCOP: D(l.netBaseCOP).toFixed(), commissionCOP: D(l.commissionCOP).toFixed(), isLate: l.isLate, bonus: Boolean(sn.bonus),
           };
         });
         const snapshot = cs.snapshot as CollaboratorSnapshot;
@@ -463,10 +465,16 @@ export interface ProjectTableRow {
   invoiced: string;
   collected: string;
   invoices: { number: string | null; status: "PLANNED" | "ISSUED"; issueDate: DateOnly | null; amount: string; collected: string }[];
-  people: { name: string; effectiveRate: string | null; bonus: boolean }[];
+  /** Quienes comisionan según el reporte de venta (las asignaciones originales, con su porcentaje base). */
+  reported: { name: string; baseRate: string }[];
+  /** Quienes efectivamente comisionan hoy (porcentaje efectivo mayor que 0, o mes sin validar). */
+  people: { name: string; effectiveRate: string | null; bonus: boolean; addedLater: boolean }[];
   /** Colaboradores activos que aún no comisionan en el proyecto. */
   candidates: { id: string; name: string; policyId: string }[];
 }
+
+/** Persona sumada después desde la liquidación (no figuraba en el reporte de venta). */
+const isAddedLater = (a: { versions: { reason: string | null }[] }) => Boolean(a.versions[0]?.reason?.startsWith("Se suma desde la liquidación"));
 
 /** Proyectos que intervienen en la liquidación (con líneas o vendidos en el período), con su facturación y recaudo. */
 export async function projectTable(view: Pick<SettlementView, "period" | "collaborators">): Promise<ProjectTableRow[]> {
@@ -488,7 +496,7 @@ export async function projectTable(view: Pick<SettlementView, "period" | "collab
   const active = collaborators.filter((c) => c.status === "ACTIVE").sort((a, b) => a.fullName.localeCompare(b.fullName));
 
   return projects
-    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+    .sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.code.localeCompare(b.code, undefined, { numeric: true }))
     .map((p) => {
       const inv = (invoices.get(p.id) ?? []).sort((a, b) => (a.issueDate ?? "9999").localeCompare(b.issueDate ?? "9999") || (a.number ?? "").localeCompare(b.number ?? "", undefined, { numeric: true }));
       const rows = inv.map((i) => ({
@@ -501,7 +509,10 @@ export async function projectTable(view: Pick<SettlementView, "period" | "collab
         invoiced: rows.filter((r) => r.status === "ISSUED").reduce((a, r) => a.plus(r.amount), ZERO).toFixed(),
         collected: rows.reduce((a, r) => a.plus(r.collected), ZERO).toFixed(),
         invoices: rows,
-        people: live.map((a) => ({ name: nameOf.get(a.collaboratorId) ?? a.collaboratorId, effectiveRate: a.effectiveRate, bonus: a.exception?.kind === "BONUS" })),
+        reported: live.filter((a) => !isAddedLater(a)).map((a) => ({ name: nameOf.get(a.collaboratorId) ?? a.collaboratorId, baseRate: a.baseRate })),
+        people: live
+          .filter((a) => a.effectiveRate === null || D(a.effectiveRate).gt(0))
+          .map((a) => ({ name: nameOf.get(a.collaboratorId) ?? a.collaboratorId, effectiveRate: a.effectiveRate, bonus: a.exception?.kind === "BONUS", addedLater: isAddedLater(a) })),
         candidates: active.filter((c) => !live.some((a) => a.collaboratorId === c.id)).map((c) => ({ id: c.id, name: c.fullName, policyId: c.policyId })),
       };
     });

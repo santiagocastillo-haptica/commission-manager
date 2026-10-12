@@ -9,7 +9,11 @@ import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
 import { addProjectPersonAction, setRateExceptionAction } from "@/server/actions/settlements";
 import { getSettlementView, projectTable, salesSweep } from "@/server/queries/settlements";
+import { bonusLines, bonusTotal, renderBonusLetterPdf } from "@/reports/pdf/bonus-letter";
+import { hasNaturalReport, naturalCollab, renderIndividualPdf } from "@/reports/pdf/individual";
+import { getReportData } from "@/server/queries/settlements";
 import { validateMonth } from "@/server/services/months";
+import { approveSettlement, calculateDraft } from "@/server/services/settlements";
 import { bootstrapBase } from "@/store/bootstrap";
 import { C, ref, runTx, type ProjectDoc } from "@/store";
 import { clearFirestore, hasEmulator } from "../helpers/firestore";
@@ -49,9 +53,24 @@ suite("barrido de ventas del período y bonificación", () => {
     sweep = await salesSweep(view);
     expect(sweep[0].rows[0]).toMatchObject({ effectiveRate: "0.005", bonusReason: "Gran trabajo comercial", commissionHereCOP: "500000", manualException: false }); // 100M × 0,5 %
 
+    // quitar la bonificación devuelve el proyecto a 0 %; se vuelve a dar para aprobarla
     expect((await setRateExceptionAction({ projectCode: "P-001", assignmentId: asgId, ratePercent: null, reason: "", kind: "BONUS" })).ok).toBe(true);
     sweep = await salesSweep(await getSettlementView(2026, "OCTOBER"));
     expect(sweep[0].rows[0]).toMatchObject({ effectiveRate: "0", bonusReason: null, commissionHereCOP: "0" });
+    expect((await setRateExceptionAction({ projectCode: "P-001", assignmentId: asgId, ratePercent: "0.5", reason: "Gran trabajo comercial", kind: "BONUS" })).ok).toBe(true);
+
+    // aprobada: la bonificación va en su carta y no en el reporte de comisiones
+    await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", U));
+    await approveSettlement("LIQ-2026-10", U, []);
+    const data = (await getReportData("LIQ-2026-10"))!;
+    const collab = data.collaborators[0];
+    expect(bonusLines(collab)).toHaveLength(1);
+    expect(bonusTotal(collab).toFixed()).toBe("500000");
+    expect(hasNaturalReport(collab)).toBe(false);
+    expect(naturalCollab(collab)).toMatchObject({ lines: [], gross: "0", netPayable: "0" });
+    const letter = await renderBonusLetterPdf(data, collab);
+    expect(letter.subarray(0, 4).toString()).toBe("%PDF");
+    expect((await renderIndividualPdf(data, collab)).subarray(0, 4).toString()).toBe("%PDF");
   });
 });
 
@@ -84,7 +103,9 @@ suite("agregar a otra persona desde la liquidación", () => {
     const table = await projectTable(view);
     expect(table).toHaveLength(1);
     expect(table[0]).toMatchObject({ projectCode: "P-001", saleAmount: "468000000", invoiced: "100000000", collected: "100000000" });
+    expect(table[0].reported.map((x) => x.name)).toEqual(["Ana"]); // solo la del reporte de venta
     expect(table[0].people.map((x) => x.name).sort()).toEqual(["Ana", "Luis"]);
+    expect(table[0].people.find((x) => x.name === "Luis")?.addedLater).toBe(true);
     expect(table[0].candidates.map((c) => c.name)).toEqual(["Nicholle"]);
     expect(table[0].invoices[0]).toMatchObject({ number: "FV1", collected: "100000000" });
   });

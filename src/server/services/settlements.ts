@@ -84,6 +84,7 @@ function buildLineDocs(code: string, lines: CalcLine[], projects: LoadedProject[
       saleDate: p.saleDate,
       type: l.type,
       isLate: l.isLate,
+      bonus: Boolean(p.assignments.find((x) => x.id === l.assignmentId)?.bonus),
     };
     return {
       id: lineId(l),

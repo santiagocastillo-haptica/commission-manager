@@ -43,7 +43,7 @@ export function buildCommissionProjects(
       saleDate: p.saleDate,
       saleMonth: p.saleMonth,
       voided: false,
-      assignments: p.assignments.filter((a) => !a.removedAt).map((a) => ({ id: a.id, collaboratorId: a.collaboratorId, baseRate: a.baseRate, effectiveRate: a.effectiveRate })),
+      assignments: p.assignments.filter((a) => !a.removedAt).map((a) => ({ id: a.id, collaboratorId: a.collaboratorId, baseRate: a.baseRate, effectiveRate: a.effectiveRate, bonus: a.exception?.kind === "BONUS" })),
       invoices: (invByProject.get(p.id) ?? []).map((i) => ({
         id: i.id,
         number: i.number,

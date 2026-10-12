@@ -13,6 +13,8 @@ export interface LineSnapshot extends LineDetail {
   saleDate: DateOnly;
   type: "COLLECTION" | "ADJUSTMENT";
   isLate: boolean;
+  /** Línea de bonificación: va en la carta de bonificación y no en el reporte de comisiones. */
+  bonus?: boolean;
 }
 
 export interface ProjectStatusEntry {

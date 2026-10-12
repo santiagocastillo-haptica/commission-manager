@@ -38,6 +38,22 @@ function Footer({ id, generated }: { id: string; generated: string }) {
   );
 }
 
+/**
+ * Vista del colaborador solo con sus comisiones «naturales»: las bonificaciones van en su propia carta. Los totales se
+ * recalculan con esas líneas (el saldo arrastrado anterior se conserva).
+ */
+export function naturalCollab(collab: Collab): Collab {
+  const lines = collab.lines.filter((l) => !l.snapshot.bonus);
+  if (lines.length === collab.lines.length) return collab;
+  const gross = lines.filter((l) => l.type === "COLLECTION").reduce((a, l) => a.plus(l.commissionCOP), ZERO);
+  const adjustments = lines.filter((l) => l.type === "ADJUSTMENT").reduce((a, l) => a.plus(l.commissionCOP), ZERO);
+  const total = gross.plus(adjustments).plus(collab.carryoverIn);
+  return { ...collab, lines, gross: gross.toFixed(), adjustments: adjustments.toFixed(), netPayable: total.isNegative() ? "0" : total.toFixed(), carryoverOut: total.isNegative() ? total.toFixed() : "0" };
+}
+
+/** ¿Tiene algo que reportar en el PDF de comisiones (líneas naturales o saldo arrastrado)? */
+export const hasNaturalReport = (collab: Collab) => collab.lines.some((l) => !l.snapshot.bonus) || !D(collab.carryoverIn).isZero();
+
 function IndividualDoc({ data, collab }: { data: ReportData; collab: Collab }) {
   const { settlement } = data;
   const id = documentId(settlement.code, collab.csId);
@@ -262,5 +278,5 @@ function StatusTable({ title, rows, empty, showPending }: { title: string; rows:
 }
 
 export function renderIndividualPdf(data: ReportData, collab: Collab): Promise<Buffer> {
-  return renderToBuffer(<IndividualDoc data={data} collab={collab} />);
+  return renderToBuffer(<IndividualDoc data={data} collab={naturalCollab(collab)} />);
 }

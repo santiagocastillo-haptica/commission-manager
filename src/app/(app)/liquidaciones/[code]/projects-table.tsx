@@ -110,14 +110,15 @@ export function ProjectsTable({ rows, readOnly }: { rows: ProjectTableRow[]; rea
               <th className="px-2 py-2 text-right font-medium">Facturado</th>
               <th className="px-2 py-2 text-right font-medium">Recaudado</th>
               <th className="px-2 py-2 font-medium">Detalle facturas</th>
-              <th className="px-2 py-2 font-medium">Personas que comisionan</th>
+              <th className="px-2 py-2 font-medium">Comisionan según reporte de venta</th>
+              <th className="px-2 py-2 font-medium">Comisionan efectivamente</th>
               <th className="px-3 py-2 font-medium">Agregar</th>
             </tr>
           </thead>
           <tbody>
             {shown.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-muted-foreground">
+                <td colSpan={8} className="px-3 py-4 text-muted-foreground">
                   No hay proyectos que mostrar.
                 </td>
               </tr>
@@ -154,11 +155,27 @@ export function ProjectsTable({ rows, readOnly }: { rows: ProjectTableRow[]; rea
                   </ul>
                 </td>
                 <td className="px-2 py-2">
+                  {r.reported.length === 0 && <span className="text-xs text-muted-foreground">Nadie</span>}
+                  <ul className="space-y-0.5 text-xs">
+                    {r.reported.map((p) => (
+                      <li key={p.name} className="whitespace-nowrap">
+                        <span className="font-medium">{p.name}</span> <span className="num text-muted-foreground">{formatPercent(p.baseRate, 2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </td>
+                <td className="px-2 py-2">
                   {r.people.length === 0 && <span className="text-xs text-muted-foreground">Nadie</span>}
                   <ul className="space-y-0.5 text-xs">
                     {r.people.map((p) => (
                       <li key={p.name} className="whitespace-nowrap">
                         <span className="font-medium">{p.name}</span> <span className="num text-muted-foreground">{p.effectiveRate === null ? "mes sin validar" : formatPercent(p.effectiveRate, 2)}</span>
+                        {p.addedLater && (
+                          <>
+                            {" "}
+                            <Badge variant="neutral">Agregada</Badge>
+                          </>
+                        )}
                         {p.bonus && (
                           <>
                             {" "}

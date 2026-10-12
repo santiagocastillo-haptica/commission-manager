@@ -21,6 +21,8 @@ export interface SettlementAssignment {
   baseRate: DecimalValue;
   /** Fijado al validar el mes de venta; nulo = mes pendiente de validación. */
   effectiveRate: DecimalValue | null;
+  /** El porcentaje vigente es una bonificación (se reporta aparte de la comisión natural). */
+  bonus?: boolean;
 }
 
 export interface SettlementCollection {

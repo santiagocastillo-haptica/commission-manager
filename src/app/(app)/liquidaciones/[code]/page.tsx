@@ -355,7 +355,7 @@ function StepReports({ view }: { view: SettlementView }) {
       </p>
       <div className="flex flex-wrap gap-3">
         <Button render={<a href={`/api/liquidaciones/${code}/zip`} download />}>
-          <FolderArchive data-icon="inline-start" /> Todos los PDF individuales (ZIP)
+          <FolderArchive data-icon="inline-start" /> Todos los PDF individuales y cartas (ZIP)
         </Button>
         <Button variant="outline" render={<a href={`/api/liquidaciones/${code}/administrativo`} download />}>
           <FileText data-icon="inline-start" /> Reporte administrativo (PDF)
@@ -371,6 +371,7 @@ function StepReports({ view }: { view: SettlementView }) {
               <TableHead>Colaborador</TableHead>
               <TableHead className="text-right">Comisión neta</TableHead>
               <TableHead className="text-right">PDF individual</TableHead>
+              <TableHead className="text-right">Carta de bonificación</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -382,9 +383,22 @@ function StepReports({ view }: { view: SettlementView }) {
                 </TableCell>
                 <TableCell className="num text-right">{formatMoney(c.netPayable, "COP", 2)}</TableCell>
                 <TableCell className="text-right">
-                  <Button size="xs" variant="outline" render={<a href={`/api/liquidaciones/${code}/individual/${c.collaboratorId}`} download />}>
-                    <Download data-icon="inline-start" /> Descargar
-                  </Button>
+                  {c.lines.some((l) => !l.bonus) || !D(c.carryoverIn).isZero() ? (
+                    <Button size="xs" variant="outline" render={<a href={`/api/liquidaciones/${code}/individual/${c.collaboratorId}`} download />}>
+                      <Download data-icon="inline-start" /> Descargar
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right">
+                  {c.lines.some((l) => l.bonus) ? (
+                    <Button size="xs" variant="outline" render={<a href={`/api/liquidaciones/${code}/bonificacion/${c.collaboratorId}`} download />}>
+                      <Download data-icon="inline-start" /> Descargar
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
