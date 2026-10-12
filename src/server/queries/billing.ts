@@ -40,7 +40,10 @@ export interface InvoiceRow {
   voided: boolean;
   voidReason: string | null;
   collected: string;
+  /** Saldo por recaudar (nunca negativo: lo cobrado de más se muestra como excedente). */
   balance: string;
+  /** Cobrado por encima del valor de la factura (excedente justificado); no genera comisión. */
+  excess: string;
   overdue: boolean;
   locked: boolean;
   collections: CollectionRow[];
@@ -88,7 +91,10 @@ export async function listInvoices(filters: InvoiceFilters = {}): Promise<Invoic
     const p = byProject.get(i.projectId)!;
     const live = i.collections.filter((c) => !c.voidedAt);
     const collected = live.reduce((acc, c) => acc.plus(c.amountReceived), ZERO);
-    const balance = D(i.amountPreTax).minus(collected);
+    const diff = D(i.amountPreTax).minus(collected);
+    // El excedente no compensa el saldo de otras facturas: el saldo nunca es negativo.
+    const balance = diff.isNegative() ? ZERO : diff;
+    const excess = diff.isNegative() ? diff.neg() : ZERO;
     const ratio = D(p.saleAmount).isZero() ? ZERO : D(p.netBase).div(p.saleAmount);
     const effective = i.netBaseExplicit ? D(i.netBaseExplicit) : D(i.amountPreTax).mul(ratio);
     return {
@@ -109,6 +115,7 @@ export async function listInvoices(filters: InvoiceFilters = {}): Promise<Invoic
       voidReason: i.voidReason,
       collected: collected.toFixed(),
       balance: balance.toFixed(),
+      excess: excess.toFixed(),
       overdue: i.status === "ISSUED" && !i.voidedAt && balance.gt(0) && i.dueDate !== null && i.dueDate < today,
       locked: locks.invoices.has(i.id),
       collections: [...i.collections]

@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/server/auth", () => ({ requireSession: async () => ({ userId: "u1", email: "t", name: "t", role: "ADMIN" }) }));
 
-import { lookupRateAction, saveInvoiceAction } from "@/server/actions/billing";
+import { lookupRateAction, saveCollectionAction, saveInvoiceAction } from "@/server/actions/billing";
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
 import { invoiceableProjects, listInvoices } from "@/server/queries/billing";
@@ -135,6 +135,26 @@ suite("registrar una factura que ya está recaudada (un solo paso)", () => {
     const part = { ...inv.collections[0], id: "p1", date: "2026-06-01", amountReceived: "20000000", currency: "COP" as const, fxRate: "1", amountCOP: "20000000", isOverpaymentAdjustment: false, justification: null, notes: null, voidedAt: null, voidedById: null, voidReason: null, createdAt: "x", updatedAt: "x", createdById: null, updatedById: null };
     await doc.ref.set({ ...inv, collections: [part], collectionIds: ["p1"] });
     expect((await saveInvoiceAction(r.data.id, invoice({ number: "FV1", amountPreTax: "10000000" }))).ok).toBe(false);
+  });
+
+  it("un recaudo con excedente deja el saldo en cero (no negativo) y muestra el excedente aparte", async () => {
+    await setup();
+    const inv = await saveInvoiceAction(null, invoice({ number: "FE70", amountPreTax: "21280000" }));
+    const second = await saveInvoiceAction(null, invoice({ number: "FE69", amountPreTax: "21280000" }));
+    if (!inv.ok || !inv.data || !second.ok || !second.data) throw new Error("no se crearon las facturas");
+    // FE70 se cobró de más: 21.283.830 (excedente de 3.830, justificado)
+    const over = await saveCollectionAction(null, { invoiceId: inv.data.id, date: "2026-06-15", amountReceived: "21283830", isOverpaymentAdjustment: true, justification: "Diferencia en cambio al recaudar", notes: "" } as Parameters<typeof saveCollectionAction>[1]);
+    expect(over.ok).toBe(true);
+    const rows = await listInvoices({ projectId: "HAP-2026-001" });
+    const fe70 = rows.find((r) => r.number === "FE70")!;
+    expect(fe70).toMatchObject({ collected: "21283830", balance: "0", excess: "3830" });
+    // el excedente de una factura no compensa lo pendiente de otra
+    expect(rows.find((r) => r.number === "FE69")).toMatchObject({ balance: "21280000", excess: "0" });
+    // y la fila de recaudo se puede volver a editar manteniendo el excedente
+    if (!over.ok || !over.data) throw new Error("no se creó el recaudo");
+    const edit = await saveCollectionAction(over.data.id, { invoiceId: inv.data.id, date: "2026-06-16", amountReceived: "21283830", isOverpaymentAdjustment: true, justification: "Diferencia en cambio al recaudar", notes: "" } as Parameters<typeof saveCollectionAction>[1]);
+    expect(edit.ok).toBe(true);
+    expect((await listInvoices({ projectId: "HAP-2026-001" })).find((r) => r.number === "FE70")).toMatchObject({ balance: "0", excess: "3830" });
   });
 
   it("con recaudos parciales la fecha no se edita desde la factura", async () => {

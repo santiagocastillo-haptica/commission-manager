@@ -31,6 +31,7 @@ function singleFullCollection(i: InvoiceRow) {
 function collectionLock(i: InvoiceRow): string | undefined {
   const live = i.collections.filter((c) => !c.voided);
   if (live.length === 0) return undefined;
+  if (live.length === 1 && live[0].isOverpaymentAdjustment) return "Tiene un excedente registrado: cambia el valor o la fecha con el lápiz del recaudo.";
   if (!singleFullCollection(i)) return "Tiene recaudos parciales: gestiónalos con el botón «Recaudo».";
   if (live[0].locked) return "El recaudo ya fue liquidado y no se puede modificar.";
   return undefined;
@@ -87,6 +88,7 @@ export function InvoiceTable({
                   <TableCell className="num text-right">{formatMoney(i.amountPreTax, cur)}</TableCell>
                   <TableCell className="text-right">
                     <div className="num">{formatMoney(i.collected, cur)}</div>
+                    {D(i.excess).gt(0) && <div className="num mt-0.5 text-xs text-warning" title="Cobrado por encima del valor de la factura. No genera comisión.">Incluye excedente {formatMoney(i.excess, cur)}</div>}
                     {i.status === "ISSUED" && !i.voided && (
                       <div className="ml-auto mt-1 h-1 w-20 bg-muted" role="img" aria-label={`Recaudado ${formatPercent(pct, 0)}`}>
                         <div className="h-full bg-brand-mint" style={{ width: `${Math.min(100, pct.mul(100).toNumber())}%` }} />
@@ -142,7 +144,7 @@ export function InvoiceTable({
                               <span className="ml-auto flex gap-1">
                                 <CollectionFormDialog
                                   collectionId={c.id}
-                                  invoice={{ id: i.id, number: i.number, projectCode: i.projectCode, currency: cur, balance: D(i.balance).plus(c.amountReceived).toFixed(), issueDate: i.issueDate }}
+                                  invoice={{ id: i.id, number: i.number, projectCode: i.projectCode, currency: cur, balance: D(i.amountPreTax).minus(D(i.collected).minus(c.amountReceived)).toFixed(), issueDate: i.issueDate }}
                                   initial={{ invoiceId: i.id, date: c.date, amountReceived: c.amountReceived, fxRate: cur === "COP" ? "" : c.fxRate, isOverpaymentAdjustment: c.isOverpaymentAdjustment, justification: c.justification ?? "", notes: c.notes ?? "" }}
                                   trigger={<Button size="icon-xs" variant="ghost" aria-label="Editar recaudo"><Pencil /></Button>}
                                 />
