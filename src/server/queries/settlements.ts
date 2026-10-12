@@ -2,7 +2,7 @@ import type { DateOnly } from "@/domain/dates";
 import { D, ZERO } from "@/domain/money";
 import { settlementPeriod, type SettlementHalf, type SettlementPeriod } from "@/domain/periods";
 import type { AlertSeverity, CalcLine } from "@/domain/settlement";
-import { C, col, linesCol, peopleCol, ref, type CollaboratorDoc, type PersonSettlementDoc, type SettlementDoc, type ProjectDoc, type SettlementLineDoc, type SettlementReviewDoc } from "@/store";
+import { C, col, linesCol, peopleCol, ref, type CollaboratorDoc, type PersonSettlementDoc, type SettlementDoc, type InvoiceDoc, type MonthlySalesDoc, type ProjectDoc, type SettlementLineDoc, type SettlementReviewDoc } from "@/store";
 import { plainReader } from "../commission-data";
 import { personKey, prepareSettlement } from "../services/settlements";
 import type { AckedAlert, AdminSnapshot, CollaboratorSnapshot, LineSnapshot } from "../services/settlement-types";
@@ -72,6 +72,7 @@ export interface ProjectReviewAssignment {
   /** Motivo de la excepción manual vigente (si la hay). */
   exceptionReason: string | null;
   exceptionBy: string | null;
+  exceptionKind?: "BONUS" | null;
 }
 
 export interface ProjectReviewLine {
@@ -357,6 +358,7 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
       const ex = projectDocs.get(g.projectId)?.assignments.find((x) => x.id === a.assignmentId)?.exception;
       if (ex) {
         a.exceptionReason = ex.reason;
+        a.exceptionKind = ex.kind ?? null;
         if (ex.byId && !names.has(ex.byId)) names.set(ex.byId, await userName(ex.byId));
         a.exceptionBy = ex.byId ? (names.get(ex.byId) ?? null) : null;
       }
@@ -378,4 +380,73 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
 export async function getSettlementView(year: number, half: SettlementHalf): Promise<SettlementView> {
   const view = await buildSettlementView(year, half);
   return { ...view, projects: await projectReviews(view.collaborators, view.period.code, view.status === "APPROVED") };
+}
+
+// ───────────── Barrido de ventas del período por colaborador ─────────────
+
+export interface SalesSweepRow {
+  projectId: string;
+  projectCode: string;
+  client: string;
+  saleDate: DateOnly;
+  saleMonth: string;
+  saleAmountCOP: string;
+  /** Resultado de la meta del mes de venta: PENDING si el mes aún no se validó. */
+  monthOutcome: "ELIGIBLE" | "NOT_ELIGIBLE" | "PENDING";
+  monthSalesCOP: string | null;
+  goalCOP: string | null;
+  assignmentId: string;
+  /** Porcentaje efectivo vigente (nulo si el mes no está validado). */
+  effectiveRate: string | null;
+  baseRate: string;
+  bonusReason: string | null;
+  manualException: boolean;
+  /** Recaudado a la fecha (COP) y comisión que entra en ESTA liquidación. */
+  collectedCOP: string;
+  commissionHereCOP: string;
+}
+
+export interface SalesSweepPerson {
+  collaboratorId: string;
+  name: string;
+  rows: SalesSweepRow[];
+}
+
+/** Proyectos vendidos dentro de las fechas del período, agrupados por colaborador, con el resultado de la meta de su mes. */
+export async function salesSweep(view: Pick<SettlementView, "period" | "collaborators">): Promise<SalesSweepPerson[]> {
+  const { periodStart, periodEnd } = view.period;
+  const projects = (await col(C.projects).get()).docs.map((d) => d.data() as ProjectDoc).filter((p) => !p.voidedAt && p.saleDate >= periodStart && p.saleDate <= periodEnd);
+  if (projects.length === 0) return [];
+  const months = new Map((await col(C.monthlySales).get()).docs.map((d) => [d.id, d.data() as MonthlySalesDoc]));
+  const people = new Map((await col(C.collaborators).get()).docs.map((d) => [d.id, d.data() as CollaboratorDoc]));
+  const collected = new Map<string, ReturnType<typeof D>>();
+  for (const d of (await col(C.invoices).get()).docs) {
+    const i = d.data() as InvoiceDoc;
+    if (i.voidedAt) continue;
+    const sum = i.collections.filter((c) => !c.voidedAt).reduce((a, c) => a.plus(c.amountCOP), ZERO);
+    collected.set(i.projectId, (collected.get(i.projectId) ?? ZERO).plus(sum));
+  }
+  const here = new Map<string, ReturnType<typeof D>>();
+  for (const c of view.collaborators) for (const l of c.lines) here.set(l.assignmentId, (here.get(l.assignmentId) ?? ZERO).plus(l.commissionCOP));
+
+  const byPerson = new Map<string, SalesSweepPerson>();
+  for (const p of projects.sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.code.localeCompare(b.code, undefined, { numeric: true }))) {
+    const m = months.get(p.saleMonth);
+    const outcome: SalesSweepRow["monthOutcome"] = m?.status === "VALIDATED" && m.outcome ? m.outcome : "PENDING";
+    for (const a of p.assignments) {
+      if (a.removedAt) continue;
+      const person = people.get(a.collaboratorId);
+      if (!person) continue;
+      const entry = byPerson.get(a.collaboratorId) ?? { collaboratorId: a.collaboratorId, name: person.fullName, rows: [] };
+      entry.rows.push({
+        projectId: p.id, projectCode: p.code, client: p.client, saleDate: p.saleDate, saleMonth: p.saleMonth, saleAmountCOP: D(p.saleAmountCOP).toFixed(),
+        monthOutcome: outcome, monthSalesCOP: m?.validatedSalesCOP ?? null, goalCOP: m?.goalSnapshotCOP ?? null,
+        assignmentId: a.id, effectiveRate: a.effectiveRate, baseRate: a.baseRate,
+        bonusReason: a.exception?.kind === "BONUS" ? a.exception.reason : null, manualException: Boolean(a.exception && a.exception.kind !== "BONUS"),
+        collectedCOP: (collected.get(p.id) ?? ZERO).toFixed(), commissionHereCOP: (here.get(a.id) ?? ZERO).toFixed(),
+      });
+      byPerson.set(a.collaboratorId, entry);
+    }
+  }
+  return [...byPerson.values()].sort((a, b) => a.name.localeCompare(b.name));
 }

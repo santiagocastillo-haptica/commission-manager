@@ -116,6 +116,8 @@ export interface AssignmentVersionDoc {
 
 /** Excepción manual del porcentaje efectivo de una asignación (con motivo). Guarda lo que había para poder restaurarlo. */
 export interface AssignmentException {
+  /** BONUS: bonificación a un proyecto de un mes que no cumplió la meta (por defecto, excepción manual). */
+  kind?: "BONUS";
   reason: string;
   at: Iso;
   byId: string | null;

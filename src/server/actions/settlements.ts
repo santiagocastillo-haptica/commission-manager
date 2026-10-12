@@ -151,6 +151,8 @@ const exceptionSchema = z.object({
   /** Porcentaje efectivo en puntos porcentuales (0.5 = 0,5 %); null quita la excepción y restaura el porcentaje calculado. */
   ratePercent: z.string().trim().regex(/^\d+(\.\d+)?$/, "Ingresa un porcentaje válido (ej. 0.5).").nullable(),
   reason: z.string().trim().max(1000),
+  /** BONUS: bonificación (se rotula así en la liquidación); por defecto, excepción manual. */
+  kind: z.enum(["MANUAL", "BONUS"]).optional(),
 });
 
 /**
@@ -161,6 +163,7 @@ export async function setRateExceptionAction(input: z.input<typeof exceptionSche
   const session = await requireSession();
   try {
     const data = exceptionSchema.parse(input);
+    const bonus = data.kind === "BONUS";
     if (data.ratePercent !== null && data.reason.length < 10) {
       return { ok: false, error: "Explica el motivo de la excepción (mínimo 10 caracteres).", fieldErrors: { reason: "Explica el motivo (mínimo 10 caracteres)." } };
     }
@@ -196,10 +199,10 @@ export async function setRateExceptionAction(input: z.input<typeof exceptionSche
         next = {
           ...a,
           effectiveRate: rate.toFixed(),
-          effectiveRateRule: `Excepción manual: ${data.reason}`,
-          exception: { reason: data.reason, at: t, byId: session.userId, previousRate: previous.previousRate, previousRule: previous.previousRule },
+          effectiveRateRule: `${bonus ? "Bonificación" : "Excepción manual"}: ${data.reason}`,
+          exception: { ...(bonus ? { kind: "BONUS" as const } : {}), reason: data.reason, at: t, byId: session.userId, previousRate: previous.previousRate, previousRule: previous.previousRule },
         };
-        summary = `Excepción de porcentaje en ${project.code}: ${a.effectiveRate ? formatPercent(a.effectiveRate) : "—"} → ${formatPercent(rate)}. Motivo: ${data.reason}`;
+        summary = `${bonus ? "Bonificación" : "Excepción de porcentaje"} en ${project.code}: ${a.effectiveRate ? formatPercent(a.effectiveRate) : "—"} → ${formatPercent(rate)}. Motivo: ${data.reason}`;
       }
       const assignments = project.assignments.map((x, i) => (i === idx ? next : x));
       tx.set(ref(C.projects, project.id), { ...project, assignments, updatedAt: t, updatedById: session.userId });
@@ -207,7 +210,7 @@ export async function setRateExceptionAction(input: z.input<typeof exceptionSche
     });
     for (const p of ["/liquidaciones", "/proyectos", "/colaboradores", "/"]) revalidatePath(p);
     revalidatePath(`/proyectos/${data.projectCode}`);
-    return ok(undefined, data.ratePercent === null ? "Excepción retirada." : "Excepción guardada. Recalcula la liquidación para verla reflejada.");
+    return ok(undefined, data.ratePercent === null ? (bonus ? "Bonificación retirada." : "Excepción retirada.") : bonus ? "Bonificación guardada." : "Excepción guardada. Recalcula la liquidación para verla reflejada.");
   } catch (e) {
     return toFailure(e);
   }

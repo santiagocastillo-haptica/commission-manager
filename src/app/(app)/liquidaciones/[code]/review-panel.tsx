@@ -186,7 +186,7 @@ export function ProjectReviewPanel({ code, projects, readOnly, invoiceable }: { 
                     </span>
                     {a.exceptionReason && (
                       <Badge variant="warning" title={a.exceptionReason}>
-                        Excepción{a.exceptionBy ? ` · ${a.exceptionBy}` : ""}
+                        {a.exceptionKind === "BONUS" ? "Bonificación" : "Excepción"}{a.exceptionBy ? ` · ${a.exceptionBy}` : ""}
                       </Badge>
                     )}
                     {a.exceptionReason && <span className="max-w-[320px] truncate text-muted-foreground" title={a.exceptionReason}>{a.exceptionReason}</span>}
