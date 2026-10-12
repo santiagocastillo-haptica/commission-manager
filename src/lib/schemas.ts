@@ -124,11 +124,23 @@ export const invoiceSchema = z
     collectedOn: z.string().optional().refine((v) => !v || isDateOnly(v), "Ingresa una fecha válida."),
     /** TRM del día del recaudo (solo si la factura es en moneda extranjera). */
     collectedFxRate: z.string().optional(),
+    /** Valor realmente recaudado (por defecto, el de la factura). Si es mayor, el excedente exige justificación. */
+    collectedAmount: z.string().optional(),
+    collectedJustification: z.string().trim().max(1000).optional(),
   })
   .superRefine((i, ctx) => {
     if (i.collectedOn) {
       if (i.status !== "ISSUED") ctx.addIssue({ code: "custom", path: ["collectedOn"], message: "Solo una factura emitida puede estar recaudada." });
       else if (i.issueDate && i.collectedOn < i.issueDate) ctx.addIssue({ code: "custom", path: ["collectedOn"], message: "El recaudo no puede ser anterior a la emisión." });
+    }
+    if (i.collectedOn && i.collectedAmount) {
+      const r = positiveMoney.safeParse(i.collectedAmount);
+      if (!r.success) ctx.addIssue({ code: "custom", path: ["collectedAmount"], message: MSG_MONEY });
+      else if (/^\d+(\.\d+)?$/.test(i.amountPreTax) && D(i.collectedAmount).lt(i.amountPreTax)) {
+        ctx.addIssue({ code: "custom", path: ["collectedAmount"], message: "El valor recaudado no puede ser menor que la factura. Para recaudos parciales usa el botón «Recaudo»." });
+      } else if (/^\d+(\.\d+)?$/.test(i.amountPreTax) && D(i.collectedAmount).gt(i.amountPreTax) && (i.collectedJustification ?? "").length < 10) {
+        ctx.addIssue({ code: "custom", path: ["collectedJustification"], message: "Explica el motivo del excedente (mínimo 10 caracteres)." });
+      }
     }
     if (i.status === "ISSUED") {
       if (!i.number) ctx.addIssue({ code: "custom", path: ["number"], message: "El número de factura es obligatorio para una factura emitida." });

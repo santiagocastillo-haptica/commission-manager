@@ -89,6 +89,16 @@ export function InvoiceFormDialog({
   const status = useWatch({ control, name: "status" });
   const issueDate = useWatch({ control, name: "issueDate" });
   const collectedOn = useWatch({ control, name: "collectedOn" });
+  const invoiceAmount = useWatch({ control, name: "amountPreTax" });
+  const collectedAmount = useWatch({ control, name: "collectedAmount" });
+  const excess = (() => {
+    try {
+      const diff = D(collectedAmount || invoiceAmount || 0).minus(invoiceAmount || 0);
+      return collectedOn && diff.gt(0) ? diff : null;
+    } catch {
+      return null;
+    }
+  })();
   const foreign = project.currency !== "COP";
 
   // Con moneda extranjera se sugiere la TRM guardada para la fecha del recaudo (si existe).
@@ -152,6 +162,18 @@ export function InvoiceFormDialog({
           <Field label="Observaciones" htmlFor="inv-notes" error={e.notes?.message}>
             <Textarea id="inv-notes" rows={2} {...register("notes")} />
           </Field>
+          {status === "ISSUED" && collectedOn && !collectionLocked && (
+            <>
+              <Field label="Valor recaudado" htmlFor="inv-collected-amount" error={e.collectedAmount?.message} hint="Déjalo igual al de la factura si se cobró exacto. Si cobraste más, el excedente se registra con su motivo y no genera comisión.">
+                <Controller control={control} name="collectedAmount" render={({ field }) => <MoneyInput id="inv-collected-amount" value={field.value || invoiceAmount || ""} onChange={field.onChange} prefix={prefix(project.currency)} invalid={!!e.collectedAmount} />} />
+              </Field>
+              {excess && (
+                <Field label={`Motivo del excedente (${formatMoney(excess, project.currency)})`} htmlFor="inv-collected-why" error={e.collectedJustification?.message} required>
+                  <Textarea id="inv-collected-why" rows={2} {...register("collectedJustification")} aria-invalid={!!e.collectedJustification} />
+                </Field>
+              )}
+            </>
+          )}
           {foreign && status === "ISSUED" && collectedOn && !collectionLocked && (
             <Field label="TRM del día del recaudo" htmlFor="inv-collected-fx" error={e.collectedFxRate?.message} required={!invoiceId} hint="Pesos por unidad de la moneda.">
               <Controller control={control} name="collectedFxRate" render={({ field }) => <MoneyInput id="inv-collected-fx" decimals={6} value={field.value ?? ""} onChange={field.onChange} prefix="$" invalid={!!e.collectedFxRate} />} />

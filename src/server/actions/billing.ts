@@ -64,7 +64,7 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
 
       const liveBefore = before ? liveCollections(before) : [];
       // Un único recaudo por el valor total de la factura: se ajusta junto con ella (no es un recaudo parcial).
-      const fullSingle = Boolean(before) && liveBefore.length === 1 && D(liveBefore[0].amountReceived).equals(before!.amountPreTax);
+      const fullSingle = Boolean(before) && liveBefore.length === 1 && D(liveBefore[0].amountReceived).gte(before!.amountPreTax);
       if (before) {
         const collected = sumReceived(liveBefore);
         if (!(fullSingle && data.status === "ISSUED") && D(data.amountPreTax).lt(collected)) {
@@ -94,17 +94,26 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       const amountChanged = Boolean(before) && !D(before!.amountPreTax).equals(data.amountPreTax);
       let collectedOn: string | null = null;
       let move: CollectionDoc | null = null;
+      // Valor del recaudo: el indicado; si no, el de la factura (o, al editar, el que ya tenía si la factura no cambió de valor).
+      const existing = liveBefore.length === 1 ? liveBefore[0] : null;
+      const target = D(data.collectedAmount || (existing && !amountChanged ? existing.amountReceived : data.amountPreTax));
+      const overpaid = target.gt(data.amountPreTax);
       if (liveBefore.length === 0) {
         if (wanted) collectedOn = wanted;
       } else if (fullSingle && data.status === "ISSUED") {
-        // Cambia la fecha y/o el valor del recaudo único para que siga cubriendo la factura completa.
+        // Cambia la fecha y/o el valor del recaudo único (incluido un excedente) para que siga cubriendo la factura.
         const date = wanted ?? liveBefore[0].date;
-        if (date !== liveBefore[0].date || amountChanged) {
+        if (date !== liveBefore[0].date || !D(liveBefore[0].amountReceived).equals(target)) {
           collectedOn = date;
           move = liveBefore[0];
         }
       } else if (wanted) {
         throw new DomainError("La factura tiene recaudos parciales: gestiónalos con el botón «Recaudo». La fecha de recaudo de este formulario solo aplica a un recaudo único por el valor total.");
+      }
+      const excessReason = (data.collectedJustification || move?.justification || "").trim();
+      if (collectedOn) {
+        if (target.lt(data.amountPreTax)) throw new DomainError("El valor recaudado no puede ser menor que la factura. Para recaudos parciales usa el botón «Recaudo».");
+        if (overpaid && excessReason.length < 10) throw new DomainError("Explica el motivo del excedente (mínimo 10 caracteres).");
       }
       let fx = move ? D(move.fxRate) : D(1);
       let rateExists = true;
@@ -136,14 +145,14 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
       const collection: CollectionDoc | null =
         collectedOn && !move
           ? {
-              id: newId(), date: collectedOn as DateOnly, amountReceived: D(data.amountPreTax).toFixed(), currency: project.currency, fxRate: fx.toFixed(),
-              amountCOP: D(data.amountPreTax).mul(fx).toFixed(), isOverpaymentAdjustment: false, justification: null, notes: null,
+              id: newId(), date: collectedOn as DateOnly, amountReceived: target.toFixed(), currency: project.currency, fxRate: fx.toFixed(),
+              amountCOP: target.mul(fx).toFixed(), isOverpaymentAdjustment: overpaid, justification: overpaid ? excessReason : null, notes: null,
               voidedAt: null, voidedById: null, voidReason: null, createdAt: t, createdById: session.userId, updatedAt: t, updatedById: session.userId,
             }
           : null;
       const moved: CollectionDoc | null =
         collectedOn && move
-          ? { ...move, date: collectedOn as DateOnly, amountReceived: D(data.amountPreTax).toFixed(), fxRate: fx.toFixed(), amountCOP: D(data.amountPreTax).mul(fx).toFixed(), updatedAt: t, updatedById: session.userId }
+          ? { ...move, date: collectedOn as DateOnly, amountReceived: target.toFixed(), fxRate: fx.toFixed(), amountCOP: target.mul(fx).toFixed(), isOverpaymentAdjustment: overpaid, justification: overpaid ? excessReason : null, updatedAt: t, updatedById: session.userId }
           : null;
       const allCollections = moved ? (before?.collections ?? []).map((c) => (c.id === moved.id ? moved : c)) : [...(before?.collections ?? []), ...(collection ? [collection] : [])];
       const doc: InvoiceDoc = {
@@ -174,7 +183,7 @@ export async function saveInvoiceAction(id: string | null, input: InvoiceInput):
           entity: "Collection", entityId: recorded.id, action: moved ? "UPDATE" : "CREATE", userId: session.userId, before: move ?? undefined, after: recorded,
           summary: moved
             ? `Recaudo ajustado: ${move!.date} → ${recorded.date}, ${formatMoney(move!.amountReceived, project.currency as CurrencyCode)} → ${formatMoney(recorded.amountReceived, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}`
-            : `Recaudo registrado junto con la factura: ${formatMoney(data.amountPreTax, project.currency as CurrencyCode)} · factura ${doc.number} · proyecto ${project.code}${project.currency !== "COP" ? ` · TRM ${fx.toFixed()}` : ""}`,
+            : `Recaudo registrado junto con la factura: ${formatMoney(recorded.amountReceived, project.currency as CurrencyCode)}${overpaid ? ` (excedente ${formatMoney(target.minus(data.amountPreTax), project.currency as CurrencyCode)})` : ""} · factura ${doc.number} · proyecto ${project.code}${project.currency !== "COP" ? ` · TRM ${fx.toFixed()}` : ""}`,
         });
       }
       audit(tx, {

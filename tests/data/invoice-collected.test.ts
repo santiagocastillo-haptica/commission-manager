@@ -157,6 +157,30 @@ suite("registrar una factura que ya está recaudada (un solo paso)", () => {
     expect((await listInvoices({ projectId: "HAP-2026-001" })).find((r) => r.number === "FE70")).toMatchObject({ balance: "0", excess: "3830" });
   });
 
+  it("el formulario de la factura registra un recaudo con excedente (con motivo) sin cambiar el valor de la factura", async () => {
+    await setup();
+    // se crea ya recaudada con excedente: exige motivo
+    expect((await saveInvoiceAction(null, invoice({ number: "FE69", amountPreTax: "21280000", collectedOn: "2026-06-15", collectedAmount: "21283830" }))).ok).toBe(false);
+    const r = await saveInvoiceAction(null, invoice({ number: "FE69", amountPreTax: "21280000", collectedOn: "2026-06-15", collectedAmount: "21283830", collectedJustification: "Diferencia en cambio al recaudar" }));
+    expect(r.ok).toBe(true);
+    let [row] = await listInvoices({ projectId: "HAP-2026-001" });
+    expect(row).toMatchObject({ amountPreTax: "21280000", collected: "21283830", balance: "0", excess: "3830" });
+    expect(row.collections[0]).toMatchObject({ isOverpaymentAdjustment: true, justification: "Diferencia en cambio al recaudar" });
+    // cobrar menos que la factura no es un recaudo completo
+    expect((await saveInvoiceAction(null, invoice({ number: "FE71", amountPreTax: "10000000", collectedOn: "2026-06-15", collectedAmount: "9000000" }))).ok).toBe(false);
+    // factura ya registrada con recaudo exacto → se le agrega el excedente editando la factura
+    const exact = await saveInvoiceAction(null, invoice({ number: "FE70", amountPreTax: "21280000", collectedOn: "2026-06-16" }));
+    if (!exact.ok || !exact.data) throw new Error("no se creó FE70");
+    expect((await saveInvoiceAction(exact.data.id, invoice({ number: "FE70", amountPreTax: "21280000", collectedOn: "2026-06-16", collectedAmount: "21283830" }))).ok).toBe(false); // sin motivo
+    expect((await saveInvoiceAction(exact.data.id, invoice({ number: "FE70", amountPreTax: "21280000", collectedOn: "2026-06-16", collectedAmount: "21283830", collectedJustification: "Diferencia en cambio al recaudar" }))).ok).toBe(true);
+    row = (await listInvoices({ projectId: "HAP-2026-001" })).find((x) => x.number === "FE70")!;
+    expect(row).toMatchObject({ amountPreTax: "21280000", collected: "21283830", balance: "0", excess: "3830" });
+    expect(row.collections.filter((c) => !c.voided)).toHaveLength(1); // se ajustó el mismo recaudo
+    // y se puede volver a dejar exacto
+    expect((await saveInvoiceAction(exact.data.id, invoice({ number: "FE70", amountPreTax: "21280000", collectedOn: "2026-06-16", collectedAmount: "21280000" }))).ok).toBe(true);
+    expect((await listInvoices({ projectId: "HAP-2026-001" })).find((x) => x.number === "FE70")).toMatchObject({ collected: "21280000", excess: "0" });
+  });
+
   it("con recaudos parciales la fecha no se edita desde la factura", async () => {
     await setup();
     const r = await saveInvoiceAction(null, invoice({ collectedOn: "2026-06-15", amountPreTax: "60000000" }));
