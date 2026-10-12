@@ -36,7 +36,13 @@ export function GoogleButton({ next }: { next?: string }) {
     } catch (e) {
       const code = (e as { code?: string }).code;
       if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
-        setError(code === "auth/unauthorized-domain" ? "Este dominio aún no está autorizado en Firebase Authentication." : "No se pudo ingresar con Google. Inténtalo de nuevo.");
+        console.error("Ingreso con Google", e);
+        const msg: Record<string, string> = {
+          "auth/unauthorized-domain": "Este dominio aún no está autorizado en Firebase Authentication.",
+          "auth/popup-blocked": "El navegador bloqueó la ventana de Google. Permite las ventanas emergentes de este sitio e inténtalo de nuevo.",
+          "auth/network-request-failed": "No hay conexión con Google. Revisa tu internet e inténtalo de nuevo.",
+        };
+        setError(msg[code ?? ""] ?? (code ? `No se pudo ingresar con Google (${code}). Inténtalo de nuevo.` : "No se pudo completar el ingreso. Recarga la página con Ctrl + Shift + R e inténtalo de nuevo."));
       }
     } finally {
       setPending(false);
