@@ -52,7 +52,7 @@ export function buildCommissionProjects(
         amountPreTax: i.amountPreTax,
         netBaseExplicit: i.netBaseExplicit,
         voided: Boolean(i.voidedAt),
-        collections: i.collections.map((c) => ({ id: c.id, date: c.date, amountReceived: c.amountReceived, currency: c.currency, fxRate: c.fxRate, voided: Boolean(c.voidedAt) })),
+        collections: i.collections.map((c) => ({ id: c.id, date: c.date, amountReceived: c.amountReceived, overpayment: c.isOverpaymentAdjustment, currency: c.currency, fxRate: c.fxRate, voided: Boolean(c.voidedAt) })),
       })),
       adjustments: (adjByProject.get(p.id) ?? []).map((a) => ({ id: a.id, invoiceId: a.invoiceId, amount: a.amount, status: a.status, kind: a.kind, voided: Boolean(a.voidedAt) })),
     }));

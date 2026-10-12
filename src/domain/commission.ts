@@ -116,11 +116,14 @@ export interface CollectionBase {
   id: string;
   date: string;
   amountReceived: DecimalValue;
+  /** Recaudo con excedente (ajuste por excedente): comisiona sobre lo realmente recaudado, sin el tope de la factura. */
+  overpayment?: boolean;
 }
 
 /**
- * Base comisionable de cada recaudo de una factura, en orden cronológico. La suma nunca supera la base efectiva de la
- * factura (un recaudo con excedente o posterior a una nota crédito no puede comisionar más allá de ella).
+ * Base comisionable de cada recaudo de una factura, en orden cronológico. La suma no supera la base efectiva de la
+ * factura (p. ej. un recaudo posterior a una nota crédito), salvo los recaudos marcados con excedente: esos comisionan
+ * sobre el valor realmente recaudado.
  */
 export function collectionBases(state: InvoiceState, collections: CollectionBase[]): Map<string, Decimal> {
   const ordered = [...collections].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
@@ -128,9 +131,10 @@ export function collectionBases(state: InvoiceState, collections: CollectionBase
   let remaining = Decimal.max(ZERO, state.base);
   const out = new Map<string, Decimal>();
   for (const c of ordered) {
-    const b = Decimal.min(D(c.amountReceived).mul(ratio), remaining);
+    const raw = D(c.amountReceived).mul(ratio);
+    const b = c.overpayment ? raw : Decimal.min(raw, remaining);
     out.set(c.id, b);
-    remaining = remaining.minus(b);
+    remaining = Decimal.max(ZERO, remaining.minus(b));
   }
   return out;
 }
@@ -166,7 +170,7 @@ export interface ProjectCommissionFacts extends ProjectBase {
   invoices: (InvoiceBase & {
     status: "PLANNED" | "ISSUED";
     voided: boolean;
-    collections: { id: string; date: string; amountReceived: DecimalValue; fxRate: DecimalValue; voided: boolean }[];
+    collections: { id: string; date: string; amountReceived: DecimalValue; overpayment?: boolean; fxRate: DecimalValue; voided: boolean }[];
   })[];
   adjustments: (AdjustmentFact & { voided: boolean })[];
 }

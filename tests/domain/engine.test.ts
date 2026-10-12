@@ -426,6 +426,15 @@ describe("topes, ajustes y compensaciones (revisión independiente)", () => {
     expect(total(run([prj]), "ana").gross.toFixed()).toBe("1000000"); // no 1.100.000
   });
 
+  it("un recaudo marcado con excedente comisiona sobre el valor realmente recaudado", () => {
+    const prj = project({
+      saleAmount: "21280000",
+      assignments: [{ collaboratorId: "ana", rate: "0.01" }],
+      invoices: [invoice("21280000", [{ ...collection("2026-05-10", "21283830"), overpayment: true }])],
+    });
+    expect(total(run([prj]), "ana").gross.toFixed()).toBe("212838.3");
+  });
+
   it("un ajuste de costos de proveedores reduce solo la base, no el valor de la factura", () => {
     const prj = project({
       saleAmount: "100000000",

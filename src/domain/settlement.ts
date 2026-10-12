@@ -27,6 +27,7 @@ export interface SettlementCollection {
   id: string;
   date: DateOnly;
   amountReceived: DecimalValue;
+  overpayment?: boolean;
   currency: string;
   fxRate: DecimalValue;
   voided: boolean;
