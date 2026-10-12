@@ -6,7 +6,8 @@ import { todayBogota } from "@/domain/dates";
 import { settlementPeriod } from "@/domain/periods";
 import { dateString, positiveMoney } from "@/lib/schemas";
 import { ok, toFailure, type ActionResult } from "@/server/action-result";
-import { C, assertNotClosing, audit, isSettled, now, ref, runTx, type MonthlySalesDoc, type ProjectDoc, type SettlementReviewDoc } from "@/store";
+import { C, assertNotClosing, audit, isSettled, newId, now, ref, runTx, type CollaboratorDoc, type MonthlySalesDoc, type PolicyDoc, type ProjectDoc, type SettlementReviewDoc } from "@/store";
+import { effectiveRate, evaluateMonth } from "@/domain/policies";
 import { D, formatPercent } from "@/domain/money";
 import { DomainError } from "@/domain/project";
 import { requireSession } from "../auth";
@@ -211,6 +212,81 @@ export async function setRateExceptionAction(input: z.input<typeof exceptionSche
     for (const p of ["/liquidaciones", "/proyectos", "/colaboradores", "/"]) revalidatePath(p);
     revalidatePath(`/proyectos/${data.projectCode}`);
     return ok(undefined, data.ratePercent === null ? (bonus ? "Bonificación retirada." : "Excepción retirada.") : bonus ? "Bonificación guardada." : "Excepción guardada. Recalcula la liquidación para verla reflejada.");
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+const addPersonSchema = z.object({
+  projectCode: z.string().min(1),
+  collaboratorId: z.string().min(1),
+  /** Porcentaje base en puntos porcentuales (1 = 1 %). */
+  ratePercent: z.string().trim().regex(/^\d+(\.\d+)?$/, "Ingresa un porcentaje válido (ej. 1)."),
+  reason: z.string().trim().min(10, "Explica el motivo (mínimo 10 caracteres).").max(1000),
+});
+
+/**
+ * Suma a otra persona a un proyecto desde la liquidación. No toca la venta ni la meta del mes, así que funciona aunque el
+ * mes esté validado: el porcentaje efectivo se fija de inmediato con el resultado ya guardado del mes.
+ */
+export async function addProjectPersonAction(input: z.input<typeof addPersonSchema>): Promise<ActionResult> {
+  const session = await requireSession();
+  try {
+    const data = addPersonSchema.parse(input);
+    const base = D(data.ratePercent).div(100);
+    if (base.lte(0) || base.gt(1)) throw new DomainError("El porcentaje base debe ser mayor que 0 y no superar 100 %.");
+
+    await runTx(async (tx) => {
+      await assertNotClosing(tx);
+      const snap = await tx.get(ref(C.projects, data.projectCode));
+      if (!snap.exists) throw new DomainError("El proyecto no existe.");
+      const project = snap.data() as ProjectDoc;
+      if (project.voidedAt) throw new DomainError("El proyecto está anulado.");
+      const personSnap = await tx.get(ref(C.collaborators, data.collaboratorId));
+      if (!personSnap.exists) throw new DomainError("El colaborador no existe.");
+      const person = personSnap.data() as CollaboratorDoc;
+      if (person.status !== "ACTIVE") throw new DomainError(`${person.fullName} está inactivo.`);
+      if (person.policyId === "GAMIFICATION" && !base.equals(0.01)) {
+        throw new DomainError(`Para ${person.fullName} (política de gamificación) el porcentaje base debe ser 1 %. La escala de cumplimiento se aplica sobre ese valor.`);
+      }
+      if (project.assignments.some((a) => a.collaboratorId === data.collaboratorId && !a.removedAt)) throw new DomainError(`${person.fullName} ya comisiona en este proyecto.`);
+
+      const monthSnap = await tx.get(ref(C.monthlySales, project.saleMonth));
+      const month = monthSnap.exists ? (monthSnap.data() as MonthlySalesDoc) : null;
+      const policySnap = await tx.get(ref(C.policies, person.policyId));
+      let effective: string | null = null;
+      let rule: string | null = null;
+      if (month?.status === "VALIDATED" && month.validatedSalesCOP !== null && month.goalSnapshotCOP !== null) {
+        if (!policySnap.exists) throw new DomainError("No se encontró la política del colaborador.");
+        const policy = policySnap.data() as PolicyDoc;
+        const tiers = policy.tiers.map((x) => ({ min: x.min, factor: x.factor, effectiveFrom: x.effectiveFrom }));
+        const er = effectiveRate(policy.kind, base, evaluateMonth(project.saleMonth, month.validatedSalesCOP, month.goalSnapshotCOP), tiers);
+        effective = er.rate.toFixed();
+        rule = er.rule;
+      }
+
+      const t = now();
+      const idx = project.assignments.findIndex((a) => a.collaboratorId === data.collaboratorId);
+      const version = { baseRate: base.toFixed(), reason: `Se suma desde la liquidación: ${data.reason}`, createdAt: t, createdById: session.userId };
+      const assignments = [...project.assignments];
+      if (idx >= 0) {
+        assignments[idx] = { ...assignments[idx], baseRate: base.toFixed(), removedAt: null, removedReason: null, effectiveRate: effective, effectiveRateRule: rule, exception: null, versions: [...assignments[idx].versions, version] };
+      } else {
+        assignments.push({ id: newId(), collaboratorId: data.collaboratorId, baseRate: base.toFixed(), effectiveRate: effective, effectiveRateRule: rule, removedAt: null, removedReason: null, versions: [version], createdAt: t });
+      }
+      tx.set(ref(C.projects, project.id), {
+        ...project,
+        assignments,
+        collaboratorIds: assignments.filter((a) => !a.removedAt).map((a) => a.collaboratorId),
+        everAssignedIds: Array.from(new Set(assignments.map((a) => a.collaboratorId))),
+        updatedAt: t,
+        updatedById: session.userId,
+      });
+      audit(tx, { entity: "Project", entityId: project.id, action: "ADD_PERSON", summary: `Se suma a ${person.fullName} (${formatPercent(base)}) en ${project.code}. Motivo: ${data.reason}`, userId: session.userId });
+    });
+    for (const p of ["/liquidaciones", "/proyectos", "/colaboradores", "/"]) revalidatePath(p);
+    revalidatePath(`/proyectos/${data.projectCode}`);
+    return ok(undefined, "Persona agregada. Recalcula la liquidación para ver su comisión.");
   } catch (e) {
     return toFailure(e);
   }

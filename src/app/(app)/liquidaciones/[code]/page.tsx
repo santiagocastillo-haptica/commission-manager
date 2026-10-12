@@ -11,8 +11,9 @@ import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money
 import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth";
 import { invoiceableProjects } from "@/server/queries/billing";
-import { getSettlementView, parseSettlementCode, salesSweep, type AlertView, type CollaboratorView, type SalesSweepPerson, type SettlementView } from "@/server/queries/settlements";
+import { getSettlementView, parseSettlementCode, projectTable, salesSweep, type AlertView, type CollaboratorView, type ProjectTableRow, type SalesSweepPerson, type SettlementView } from "@/server/queries/settlements";
 import { ProjectReviewPanel } from "./review-panel";
+import { ProjectsTable } from "./projects-table";
 import { SalesSweep } from "./sales-sweep";
 import { ApprovePanel, CalculateButton, DiscardButton, PaymentDialog } from "./wizard-client";
 
@@ -94,7 +95,7 @@ export default async function SettlementWizardPage({ params, searchParams }: Pag
 
       {step === 1 && <StepPeriod view={view} />}
       {step === 2 && <StepCalculate view={view} year={parsed.year} half={parsed.half} />}
-      {step === 3 && <StepReview view={view} year={parsed.year} half={parsed.half} invoiceable={view.status === "APPROVED" ? [] : await invoiceableProjects()} sweep={await salesSweep(view)} />}
+      {step === 3 && <StepReview view={view} year={parsed.year} half={parsed.half} invoiceable={view.status === "APPROVED" ? [] : await invoiceableProjects()} sweep={await salesSweep(view)} table={await projectTable(view)} />}
       {step === 4 && <StepApprove view={view} />}
       {step === 5 && <StepReports view={view} />}
       {step === 6 && <StepPayments view={view} />}
@@ -218,7 +219,7 @@ function LinesTable({ c }: { c: CollaboratorView }) {
   );
 }
 
-function StepReview({ view, year, half, invoiceable, sweep }: { sweep: SalesSweepPerson[]; view: SettlementView; year: number; half: "APRIL" | "OCTOBER"; invoiceable: Awaited<ReturnType<typeof invoiceableProjects>> }) {
+function StepReview({ view, year, half, invoiceable, sweep, table }: { table: ProjectTableRow[]; sweep: SalesSweepPerson[]; view: SettlementView; year: number; half: "APRIL" | "OCTOBER"; invoiceable: Awaited<ReturnType<typeof invoiceableProjects>> }) {
   const approved = view.status === "APPROVED";
   const lines = view.collaborators.reduce((a, c) => a + c.lines.length, 0);
   return (
@@ -248,6 +249,8 @@ function StepReview({ view, year, half, invoiceable, sweep }: { sweep: SalesSwee
       </div>
 
       <ProjectReviewPanel code={view.period.code} projects={view.projects} readOnly={approved} invoiceable={invoiceable} />
+
+      <ProjectsTable rows={table} readOnly={approved} />
 
       <SalesSweep people={sweep} readOnly={approved} />
 

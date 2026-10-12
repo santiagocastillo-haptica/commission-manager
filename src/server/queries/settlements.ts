@@ -450,3 +450,59 @@ export async function salesSweep(view: Pick<SettlementView, "period" | "collabor
   }
   return [...byPerson.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
+
+// ───────────── Tabla de proyectos de la liquidación ─────────────
+
+export interface ProjectTableRow {
+  projectId: string;
+  projectCode: string;
+  client: string;
+  saleDate: DateOnly;
+  currency: string;
+  saleAmount: string;
+  invoiced: string;
+  collected: string;
+  invoices: { number: string | null; status: "PLANNED" | "ISSUED"; issueDate: DateOnly | null; amount: string; collected: string }[];
+  people: { name: string; effectiveRate: string | null; bonus: boolean }[];
+  /** Colaboradores activos que aún no comisionan en el proyecto. */
+  candidates: { id: string; name: string; policyId: string }[];
+}
+
+/** Proyectos que intervienen en la liquidación (con líneas o vendidos en el período), con su facturación y recaudo. */
+export async function projectTable(view: Pick<SettlementView, "period" | "collaborators">): Promise<ProjectTableRow[]> {
+  const { periodStart, periodEnd } = view.period;
+  const inLines = new Set(view.collaborators.flatMap((c) => c.lines.map((l) => l.projectId)));
+  const projects = (await col(C.projects).get()).docs
+    .map((d) => d.data() as ProjectDoc)
+    .filter((p) => !p.voidedAt && (inLines.has(p.id) || (p.saleDate >= periodStart && p.saleDate <= periodEnd)));
+  if (projects.length === 0) return [];
+  const ids = new Set(projects.map((p) => p.id));
+  const invoices = new Map<string, InvoiceDoc[]>();
+  for (const d of (await col(C.invoices).get()).docs) {
+    const i = d.data() as InvoiceDoc;
+    if (i.voidedAt || !ids.has(i.projectId)) continue;
+    invoices.set(i.projectId, [...(invoices.get(i.projectId) ?? []), i]);
+  }
+  const collaborators = (await col(C.collaborators).get()).docs.map((d) => d.data() as CollaboratorDoc);
+  const nameOf = new Map(collaborators.map((c) => [c.id, c.fullName]));
+  const active = collaborators.filter((c) => c.status === "ACTIVE").sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+  return projects
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+    .map((p) => {
+      const inv = (invoices.get(p.id) ?? []).sort((a, b) => (a.issueDate ?? "9999").localeCompare(b.issueDate ?? "9999") || (a.number ?? "").localeCompare(b.number ?? "", undefined, { numeric: true }));
+      const rows = inv.map((i) => ({
+        number: i.number, status: i.status, issueDate: i.issueDate, amount: D(i.amountPreTax).toFixed(),
+        collected: i.collections.filter((c) => !c.voidedAt).reduce((a, c) => a.plus(c.amountReceived), ZERO).toFixed(),
+      }));
+      const live = p.assignments.filter((a) => !a.removedAt);
+      return {
+        projectId: p.id, projectCode: p.code, client: p.client, saleDate: p.saleDate, currency: p.currency, saleAmount: D(p.saleAmount).toFixed(),
+        invoiced: rows.filter((r) => r.status === "ISSUED").reduce((a, r) => a.plus(r.amount), ZERO).toFixed(),
+        collected: rows.reduce((a, r) => a.plus(r.collected), ZERO).toFixed(),
+        invoices: rows,
+        people: live.map((a) => ({ name: nameOf.get(a.collaboratorId) ?? a.collaboratorId, effectiveRate: a.effectiveRate, bonus: a.exception?.kind === "BONUS" })),
+        candidates: active.filter((c) => !live.some((a) => a.collaboratorId === c.id)).map((c) => ({ id: c.id, name: c.fullName, policyId: c.policyId })),
+      };
+    });
+}
