@@ -41,7 +41,15 @@ suite("barrido de ventas del período y bonificación", () => {
   });
 
   it("el barrido muestra el proyecto que no cumplió la meta sin comisión; con bonificación del 0,5 % comisiona sobre lo recaudado", async () => {
+    // un proyecto de un período anterior con un recaudo en este: no aparece en la tabla del período
+    const ana = ((await ref(C.projects, "P-001").get()).data() as ProjectDoc).assignments[0].collaboratorId;
+    id(await saveProjectAction(null, { code: "P-OLD", client: "Cliente SA", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "10000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
+    const oldInv = id(await saveInvoiceAction(null, { projectId: "P-OLD", number: "FV0", status: "ISSUED", issueDate: "2026-02-01", dueDate: "", amountPreTax: "10000000", netBaseExplicit: "", notes: "" } as Parameters<typeof saveInvoiceAction>[1]));
+    id(await saveCollectionAction(null, { invoiceId: oldInv, date: "2026-08-10", amountReceived: "10000000", isOverpaymentAdjustment: false, notes: "" } as Parameters<typeof saveCollectionAction>[1]));
+    await runTx((tx) => validateMonth(tx, "2026-01", U, "2026-06-15"));
     let view = await getSettlementView(2026, "OCTOBER");
+    const only = await projectTable(view);
+    expect(only.map((r) => [r.projectCode, r.monthOutcome])).toEqual([["P-001", "NOT_ELIGIBLE"]]);
     let sweep = await salesSweep(view);
     expect(sweep).toHaveLength(1);
     expect(sweep[0].rows[0]).toMatchObject({ projectCode: "P-001", monthOutcome: "NOT_ELIGIBLE", effectiveRate: "0", collectedCOP: "100000000", commissionHereCOP: "0", bonusReason: null });
@@ -102,7 +110,7 @@ suite("agregar a otra persona desde la liquidación", () => {
     expect(view.collaborators.find((c) => c.name === "Luis")?.gross).toBe("600000"); // 100M × 0,6 %
     const table = await projectTable(view);
     expect(table).toHaveLength(1);
-    expect(table[0]).toMatchObject({ projectCode: "P-001", saleAmount: "468000000", invoiced: "100000000", collected: "100000000" });
+    expect(table[0]).toMatchObject({ projectCode: "P-001", monthOutcome: "ELIGIBLE", saleAmount: "468000000", invoiced: "100000000", collected: "100000000" });
     expect(table[0].reported.map((x) => x.name)).toEqual(["Ana"]); // solo la del reporte de venta
     expect(table[0].people.map((x) => x.name).sort()).toEqual(["Ana", "Luis"]);
     expect(table[0].people.find((x) => x.name === "Luis")?.addedLater).toBe(true);

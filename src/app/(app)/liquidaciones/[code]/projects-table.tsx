@@ -15,6 +15,12 @@ import { formatMoney, formatPercent, type CurrencyCode } from "@/domain/money";
 import { addProjectPersonAction } from "@/server/actions/settlements";
 import type { ProjectTableRow } from "@/server/queries/settlements";
 
+const SEMAPHORE = {
+  ELIGIBLE: { label: "El mes de venta cumplió la meta", dot: "bg-green-600" },
+  NOT_ELIGIBLE: { label: "El mes de venta no cumplió la meta", dot: "bg-red-600" },
+  PENDING: { label: "Mes de venta sin validar", dot: "bg-gray-400" },
+} as const;
+
 function AddPersonDialog({ row }: { row: ProjectTableRow }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -100,7 +106,7 @@ export function ProjectsTable({ rows, readOnly }: { rows: ProjectTableRow[]; rea
         <h3 className="text-sm font-bold">Proyectos de la liquidación ({rows.length})</h3>
         <Input aria-label="Buscar proyecto" placeholder="Buscar por código o cliente" value={q} onChange={(e) => setQ(e.target.value)} className="h-8 w-60" />
       </div>
-      <p className="text-xs text-muted-foreground">Proyectos con recaudos en esta liquidación o vendidos en las fechas del período. Los valores están en la moneda de cada proyecto, sin IVA.</p>
+      <p className="text-xs text-muted-foreground">Solo los proyectos vendidos en los meses de este período, hayan cumplido o no la meta. Verde: el mes de venta cumplió la meta; rojo: no la cumplió; gris: el mes aún no está validado. Los valores están en la moneda de cada proyecto, sin IVA.</p>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
@@ -126,9 +132,17 @@ export function ProjectsTable({ rows, readOnly }: { rows: ProjectTableRow[]; rea
             {shown.map((r) => (
               <tr key={r.projectId} className="border-t align-top">
                 <td className="px-3 py-2">
-                  <Link href={`/proyectos/${r.projectId}`} className="num font-semibold text-brand-deep underline-offset-4 hover:underline">
-                    {r.projectCode}
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    <span
+                      role="img"
+                      aria-label={SEMAPHORE[r.monthOutcome].label}
+                      title={SEMAPHORE[r.monthOutcome].label}
+                      className={`inline-block size-3 shrink-0 rounded-full ${SEMAPHORE[r.monthOutcome].dot}`}
+                    />
+                    <Link href={`/proyectos/${r.projectId}`} className="num font-semibold text-brand-deep underline-offset-4 hover:underline">
+                      {r.projectCode}
+                    </Link>
+                  </span>
                   <span className="block text-xs text-muted-foreground">
                     {r.client} · {formatDate(r.saleDate)}
                   </span>

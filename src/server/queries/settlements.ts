@@ -460,6 +460,8 @@ export interface ProjectTableRow {
   projectCode: string;
   client: string;
   saleDate: DateOnly;
+  /** Meta del mes de venta: ELIGIBLE (verde), NOT_ELIGIBLE (rojo) o PENDING (mes sin validar). */
+  monthOutcome: "ELIGIBLE" | "NOT_ELIGIBLE" | "PENDING";
   currency: string;
   saleAmount: string;
   invoiced: string;
@@ -476,14 +478,14 @@ export interface ProjectTableRow {
 /** Persona sumada después desde la liquidación (no figuraba en el reporte de venta). */
 const isAddedLater = (a: { versions: { reason: string | null }[] }) => Boolean(a.versions[0]?.reason?.startsWith("Se suma desde la liquidación"));
 
-/** Proyectos que intervienen en la liquidación (con líneas o vendidos en el período), con su facturación y recaudo. */
+/** Proyectos vendidos dentro de los meses del período (de cualquier mes, cumpliera o no la meta), con su facturación y recaudo. */
 export async function projectTable(view: Pick<SettlementView, "period" | "collaborators">): Promise<ProjectTableRow[]> {
   const { periodStart, periodEnd } = view.period;
-  const inLines = new Set(view.collaborators.flatMap((c) => c.lines.map((l) => l.projectId)));
   const projects = (await col(C.projects).get()).docs
     .map((d) => d.data() as ProjectDoc)
-    .filter((p) => !p.voidedAt && (inLines.has(p.id) || (p.saleDate >= periodStart && p.saleDate <= periodEnd)));
+    .filter((p) => !p.voidedAt && p.saleDate >= periodStart && p.saleDate <= periodEnd);
   if (projects.length === 0) return [];
+  const months = new Map((await col(C.monthlySales).get()).docs.map((d) => [d.id, d.data() as MonthlySalesDoc]));
   const ids = new Set(projects.map((p) => p.id));
   const invoices = new Map<string, InvoiceDoc[]>();
   for (const d of (await col(C.invoices).get()).docs) {
@@ -505,7 +507,7 @@ export async function projectTable(view: Pick<SettlementView, "period" | "collab
       }));
       const live = p.assignments.filter((a) => !a.removedAt);
       return {
-        projectId: p.id, projectCode: p.code, client: p.client, saleDate: p.saleDate, currency: p.currency, saleAmount: D(p.saleAmount).toFixed(),
+        projectId: p.id, projectCode: p.code, client: p.client, saleDate: p.saleDate, monthOutcome: months.get(p.saleMonth)?.status === "VALIDATED" ? (months.get(p.saleMonth)!.outcome ?? "PENDING") : "PENDING", currency: p.currency, saleAmount: D(p.saleAmount).toFixed(),
         invoiced: rows.filter((r) => r.status === "ISSUED").reduce((a, r) => a.plus(r.amount), ZERO).toFixed(),
         collected: rows.reduce((a, r) => a.plus(r.collected), ZERO).toFixed(),
         invoices: rows,
