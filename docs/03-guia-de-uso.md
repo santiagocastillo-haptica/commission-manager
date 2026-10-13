@@ -15,7 +15,7 @@ Pensada para la persona de finanzas y administración. Cada tarea indica dónde 
 - Los recaudos ya liquidados quedan bloqueados (candado). Para corregirlos se registra un **ajuste**.
 
 ## 3. Cada mes: validar las ventas (Configuración → Meta y ventas mensuales)
-Cuando termina un mes, pulsa **Validar**. Se fijan la elegibilidad de sus proyectos y el porcentaje efectivo de cada colaborador (la meta se cumple con ventas ≥ $390M). Antes de validar puedes sumar un **ajuste manual** justificado si hubo ventas que no están como proyecto. Un mes validado se puede reabrir con motivo mientras no tenga comisiones liquidadas.
+Cuando termina un mes, pulsa **Validar**. Se fijan la elegibilidad de sus proyectos y el porcentaje efectivo de cada colaborador (la meta se cumple con ventas ≥ $390M; con el 98 % o más, es decir ≥ $382,2M, se reconoce como cumplida). Antes de validar puedes sumar un **ajuste manual** justificado si hubo ventas que no están como proyecto. Un mes validado se puede reabrir con motivo mientras no tenga comisiones liquidadas.
 
 ## 4. Liquidación semestral (Liquidaciones)
 Abre el período (abril o octubre) y sigue los 6 pasos:

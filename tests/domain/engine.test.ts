@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { assignmentSummary } from "@/domain/commission";
 import { D } from "@/domain/money";
-import { effectiveRate, evaluateMonth, type PolicyKind, type Tier } from "@/domain/policies";
+import { effectiveRate, evaluateMonth, monthOutcomeReason, type PolicyKind, type Tier } from "@/domain/policies";
 import { projectFinancials } from "@/domain/project-status";
 import { settlementForCollectionDate, settlementPeriod } from "@/domain/periods";
 import {
@@ -72,7 +72,7 @@ const total = (r: ReturnType<typeof run>, who: string) => r.totals.find((t) => t
 
 describe("1. Proyecto vendido en un mes que NO supera la meta", () => {
   it("la política general da 0 % y no se genera comisión aunque haya recaudo", () => {
-    const rate = general("389999999.99");
+    const rate = general("382199999.99"); // justo debajo del 98 % de la meta
     expect(rate.isZero()).toBe(true);
     const prj = project({ saleAmount: "100000000", assignments: [{ collaboratorId: "ana", rate: rate.toFixed() }], invoices: [invoice("100000000", [collection("2026-05-10", "100000000")])] });
     const r = run([prj]);
@@ -98,9 +98,15 @@ describe("3. Ventas exactamente de $390M (regla inclusiva confirmada)", () => {
     expect(nicholle("390000000").toFixed()).toBe("0.01");
     expect(evaluateMonth("2026-01", "390000000", GOAL).reached).toBe(true);
   });
-  it("un centavo por debajo ya no alcanza la meta general", () => {
-    expect(general("389999999.99").isZero()).toBe(true);
-    expect(evaluateMonth("2026-01", "389999999.99", GOAL).reached).toBe(false);
+  it("un centavo por debajo del 98 % de la meta ya no se reconoce como cumplida", () => {
+    expect(general("382199999.99").isZero()).toBe(true);
+    expect(evaluateMonth("2026-01", "382199999.99", GOAL).reached).toBe(false);
+  });
+  it("con el 98 % de la meta o más (hasta antes del 100 %) se reconoce como si se cumpliera", () => {
+    expect(evaluateMonth("2026-01", "382200000", GOAL).reached).toBe(true); // 98 % exacto, inclusivo
+    expect(evaluateMonth("2026-01", "389999999.99", GOAL).reached).toBe(true);
+    expect(general("382200000").toFixed()).toBe("0.01");
+    expect(monthOutcomeReason(evaluateMonth("2026-01", "385000000", GOAL))).toMatch(/98 %/);
   });
 });
 
@@ -202,7 +208,9 @@ describe("9. Nicholle con cumplimiento inferior al 70 %", () => {
 describe("10. Nicholle con cumplimiento del 70 %, 100 % y 120 %", () => {
   it("aplica los tramos con límite inferior inclusivo", () => {
     expect(nicholle("273000000").toFixed()).toBe("0.005"); // 70 %
-    expect(nicholle("389999999.99").toFixed()).toBe("0.005"); // justo debajo de 100 %
+    expect(nicholle("382199999.99").toFixed()).toBe("0.005"); // justo debajo del 98 %
+    expect(nicholle("382200000").toFixed()).toBe("0.01"); // 98 % se reconoce como 100 %
+    expect(nicholle("389999999.99").toFixed()).toBe("0.01");
     expect(nicholle("390000000").toFixed()).toBe("0.01"); // 100 %
     expect(nicholle("467999999.99").toFixed()).toBe("0.01"); // justo debajo de 120 %
     expect(nicholle("468000000").toFixed()).toBe("0.015"); // 120 %
@@ -522,7 +530,7 @@ describe("gamificación: antes de su fecha de inicio rige la política general",
     const reached = effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "390000000"), FROM_OCT);
     expect(reached.rate.toFixed()).toBe("0.01"); // sin factor 1,5 aunque haya vendido más
     expect(effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "500000000"), FROM_OCT).rate.toFixed()).toBe("0.01");
-    const missed = effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "389999999"), FROM_OCT);
+    const missed = effectiveRate("GAMIFICATION_TIERS", "0.01", m("2025-09", "382199999"), FROM_OCT);
     expect(missed.rate.isZero()).toBe(true);
     expect(missed.rule).toMatch(/Antes del inicio de la gamificación.*política general/);
   });

@@ -10,8 +10,16 @@ import { D, Decimal, formatMoney, formatPercent, type DecimalValue, ZERO } from 
  *  GAMIFICATION_TIERS  La escala de cumplimiento REEMPLAZA la compuerta: % efectivo = % base × factor del tramo
  *                      (0 / 0,5 / 1 / 1,5). Límite inferior de cada tramo inclusivo.
  *
+ * Regla de reconocimiento: con el 98 % de la meta o más, el mes se reconoce como si la hubiera cumplido (para ambas políticas).
+ *
  * La política se asocia al registro del colaborador (nunca a su nombre).
  */
+
+/** Fracción de la meta mensual a partir de la cual el mes se reconoce como cumplido (inclusiva). */
+export const GOAL_RECOGNITION = "0.98";
+
+/** ¿Las ventas alcanzan la meta o, al menos, el 98 % de ella? */
+export const goalReached = (sales: DecimalValue, goal: DecimalValue): boolean => D(sales).gte(D(goal).mul(GOAL_RECOGNITION));
 
 export type PolicyKind = "GENERAL_THRESHOLD" | "GAMIFICATION_TIERS";
 
@@ -34,7 +42,7 @@ export interface MonthEvaluation {
 export function evaluateMonth(yearMonth: string, sales: DecimalValue, goal: DecimalValue): MonthEvaluation {
   const s = D(sales);
   const g = D(goal);
-  return { yearMonth, sales: s, goal: g, ratio: g.isZero() ? ZERO : s.div(g), reached: s.gte(g) };
+  return { yearMonth, sales: s, goal: g, ratio: g.isZero() ? ZERO : s.div(g), reached: goalReached(s, g) };
 }
 
 /** Conjunto de tramos vigente en el mes (el de mayor `effectiveFrom` ≤ primer día del mes). */
@@ -64,7 +72,8 @@ export interface EffectiveRate {
 export function effectiveRate(kind: PolicyKind, baseRate: DecimalValue, month: MonthEvaluation, tiers: Tier[]): EffectiveRate {
   const base = D(baseRate);
   const mes = formatMonth(month.yearMonth);
-  const detail = `ventas de ${mes} ${formatMoney(month.sales, "COP", 0)} / meta ${formatMoney(month.goal, "COP", 0)} = ${formatPercent(month.ratio, 2)}`;
+  const recognized = month.reached && month.sales.lt(month.goal);
+  const detail = `ventas de ${mes} ${formatMoney(month.sales, "COP", 0)} / meta ${formatMoney(month.goal, "COP", 0)} = ${formatPercent(month.ratio, 2)}${recognized ? " (con el 98 % o más se reconoce como meta cumplida)" : ""}`;
 
   if (kind === "GENERAL_THRESHOLD") {
     return month.reached
@@ -82,7 +91,8 @@ export function effectiveRate(kind: PolicyKind, baseRate: DecimalValue, month: M
     }
     throw new DomainError(`No hay una escala de gamificación vigente para ${mes}: configúrala antes de validar el mes.`);
   }
-  const { factor, min } = tierFactor(applicable, month.sales, month.goal);
+  // Con el 98 % o más de la meta, el cumplimiento se reconoce como del 100 % para la escala.
+  const { factor, min } = tierFactor(applicable, recognized ? month.goal : month.sales, month.goal);
   const rate = base.mul(factor);
   return {
     rate,
@@ -93,7 +103,7 @@ export function effectiveRate(kind: PolicyKind, baseRate: DecimalValue, month: M
 /** Resultado del mes frente a la política general (para el estado «Elegible / No elegible» de los proyectos). */
 export function monthOutcomeReason(month: MonthEvaluation): string {
   const mes = formatMonth(month.yearMonth);
-  const detail = `Ventas de ${mes}: ${formatMoney(month.sales, "COP", 0)} frente a una meta de ${formatMoney(month.goal, "COP", 0)} (${formatPercent(month.ratio, 1)}).`;
+  const detail = `Ventas de ${mes}: ${formatMoney(month.sales, "COP", 0)} frente a una meta de ${formatMoney(month.goal, "COP", 0)} (${formatPercent(month.ratio, 1)})${month.reached && month.sales.lt(month.goal) ? ", suficiente: el 98 % o más de la meta se reconoce como cumplida" : ""}.`;
   return month.reached
     ? `${detail} La meta se alcanzó: el proyecto genera derecho a comisión.`
     : `${detail} La meta no se alcanzó: el proyecto no genera comisión bajo la política general.`;

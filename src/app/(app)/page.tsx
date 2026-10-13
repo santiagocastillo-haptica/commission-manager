@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { endOfMonth, formatDate, formatMonthShort, monthKey, todayBogota } from "@/domain/dates";
 import { D, formatCOP0, formatMoney, formatPercent, sum, ZERO, type CurrencyCode } from "@/domain/money";
 import { nextSettlement } from "@/domain/periods";
+import { goalReached } from "@/domain/policies";
 import { requireSession } from "@/server/auth";
 import { listInvoices } from "@/server/queries/billing";
 import { goalForMonth, loadGoals, loadManualAdjustments } from "@/server/queries/common";
@@ -57,7 +58,7 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const chartData: SalesPoint[] = monthKeys.map((ym) => {
     const sales = monthSales(ym);
     const goal = goalForMonth(goals, ym);
-    return { label: formatMonthShort(ym), sales: sales.toNumber(), goal: goal.toNumber(), reached: sales.gte(goal) };
+    return { label: formatMonthShort(ym), sales: sales.toNumber(), goal: goal.toNumber(), reached: goalReached(sales, goal) };
   });
 
   const elapsed = monthKeys.filter((ym) => ym <= currentMonth);
