@@ -111,6 +111,23 @@ export async function validateMonthAction(input: { yearMonth: string }): Promise
   }
 }
 
+/** Recalcula un mes ya validado con las reglas vigentes (p. ej. el 98 % de la meta) conservando excepciones y bonificaciones. */
+export async function revalidateMonthAction(input: { yearMonth: string }): Promise<ActionResult<MonthValidationResult>> {
+  const session = await requireSession();
+  try {
+    const { yearMonth } = monthSchema.parse(input);
+    const result = await runTx(async (tx) => {
+      await assertNotClosing(tx);
+      return validateMonth(tx, yearMonth, session.userId, todayBogota(), { revalidate: true });
+    });
+    revalidateCommissionViews();
+    revalidatePath("/liquidaciones");
+    return ok(result, `${formatMonth(yearMonth)} revalidado: ${result.reached ? "la meta se alcanzó" : "la meta no se alcanzó"}. Recalcula la liquidación para ver el cambio.`);
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
 export async function reopenMonthAction(input: { yearMonth: string; reason: string }): Promise<ActionResult> {
   const session = await requireSession();
   try {

@@ -18,7 +18,8 @@ import { exchangeRateSchema, goalSchema } from "@/lib/schemas";
 import { VoidDialog } from "@/components/billing/dialogs";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { D, formatMoney, formatPercent } from "@/domain/money";
-import { reopenMonthAction, saveExchangeRateAction, saveGoalAction, saveMonthAdjustmentAction, validateMonthAction } from "@/server/actions/settings";
+import { goalReached } from "@/domain/policies";
+import { reopenMonthAction, revalidateMonthAction, saveExchangeRateAction, saveGoalAction, saveMonthAdjustmentAction, validateMonthAction } from "@/server/actions/settings";
 
 type GoalInput = z.input<typeof goalSchema>;
 type RateInput = z.input<typeof exchangeRateSchema>;
@@ -198,10 +199,28 @@ export function MonthActions({
   projectCount: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [revalidating, setRevalidating] = useState(false);
   const router = useRouter();
 
   if (status === "VALIDATED") {
     return (
+      <span className="inline-flex gap-1.5">
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={revalidating}
+          title="Recalcula la elegibilidad y los porcentajes con las reglas vigentes (incluido el 98 % de la meta). Conserva excepciones y bonificaciones."
+          onClick={async () => {
+            setRevalidating(true);
+            const res = await revalidateMonthAction({ yearMonth });
+            setRevalidating(false);
+            if (!res.ok) return toast.error(res.error);
+            toast.success(res.message);
+            router.refresh();
+          }}
+        >
+          {revalidating ? "Revalidando…" : "Revalidar"}
+        </Button>
       <VoidDialog
         title={`Reabrir ${monthLabel}`}
         description="Se borran la elegibilidad y los porcentajes efectivos fijados, y el mes vuelve a quedar pendiente de validación. No es posible si ya hay comisiones liquidadas de sus proyectos."
@@ -210,12 +229,13 @@ export function MonthActions({
         action={(reason) => reopenMonthAction({ yearMonth, reason })}
         trigger={<Button size="xs" variant="outline">Reabrir</Button>}
       />
+      </span>
     );
   }
 
   const sales = D(salesCOP);
   const goal = D(goalCOP);
-  const reached = sales.gte(goal);
+  const reached = goalReached(sales, goal);
 
   return (
     <>

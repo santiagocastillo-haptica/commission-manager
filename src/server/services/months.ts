@@ -22,7 +22,7 @@ export interface MonthValidationResult {
  * Solo puede hacerse cuando el mes ya terminó (hora de Colombia). Una vez validado, el resultado es inmutable
  * y no depende de las ventas de meses posteriores. Debe llamarse dentro de una transacción (tras `assertNotClosing`).
  */
-export async function validateMonth(tx: Tx, yearMonth: string, userId: string, today: string): Promise<MonthValidationResult> {
+export async function validateMonth(tx: Tx, yearMonth: string, userId: string, today: string, opts: { revalidate?: boolean } = {}): Promise<MonthValidationResult> {
   if (!/^\d{4}-\d{2}$/.test(yearMonth)) throw new DomainError("Mes inválido.");
   if (endOfMonth(yearMonth) >= today) {
     throw new DomainError(`${formatMonth(yearMonth)} aún no termina: solo se pueden validar meses cerrados, porque nuevas ventas todavía pueden cambiar el cumplimiento.`);
@@ -31,7 +31,9 @@ export async function validateMonth(tx: Tx, yearMonth: string, userId: string, t
   // ───── Lecturas ─────
   const monthSnap = await tx.get(ref(C.monthlySales, yearMonth));
   const month = monthSnap.exists ? (monthSnap.data() as MonthlySalesDoc) : emptyMonth(yearMonth);
-  if (month.status === "VALIDATED") throw new DomainError(`${formatMonth(yearMonth)} ya está validado.`);
+  if (opts.revalidate) {
+    if (month.status !== "VALIDATED") throw new DomainError("Solo se pueden revalidar meses ya validados.");
+  } else if (month.status === "VALIDATED") throw new DomainError(`${formatMonth(yearMonth)} ya está validado.`);
 
   const [goalSnap, policySnap, projectSnap] = await Promise.all([
     tx.get(col(C.goals)),
@@ -41,6 +43,19 @@ export async function validateMonth(tx: Tx, yearMonth: string, userId: string, t
   const goals = goalSnap.docs.map((d) => d.data() as GoalDoc).map((g) => ({ effectiveFrom: g.effectiveFrom, amount: D(g.amountCOP) })).sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
   const policies = new Map(policySnap.docs.map((d) => [d.id, d.data() as PolicyDoc]));
   const projects = projectSnap.docs.map((d) => d.data() as ProjectDoc).filter((p) => !p.voidedAt);
+
+  if (opts.revalidate) {
+    // Mismas condiciones que para reabrir: no se toca un mes con comisiones ya liquidadas.
+    for (const p of projects) {
+      if (await isSettled(tx, "projectId", p.id)) {
+        throw new DomainError(`No se puede revalidar ${formatMonth(yearMonth)}: ya hay comisiones liquidadas de sus proyectos. Las correcciones se registran como ajustes.`);
+      }
+    }
+    const later = (await tx.get(col(C.settlements).where("periodEnd", ">=", startOfMonth(yearMonth)))).docs
+      .map((d) => d.data() as SettlementDoc)
+      .find((s) => s.status === "APPROVED" || s.status === "CLOSING");
+    if (later) throw new DomainError(`No se puede revalidar ${formatMonth(yearMonth)}: la liquidación ${later.code} ya está aprobada y pudo haber evaluado sus recaudos. Las correcciones se registran como ajustes.`);
+  }
 
   const collabIds = [...new Set(projects.flatMap((p) => p.assignments.filter((a) => !a.removedAt).map((a) => a.collaboratorId)))];
   const collabs = new Map<string, CollaboratorDoc>();
@@ -61,6 +76,8 @@ export async function validateMonth(tx: Tx, yearMonth: string, userId: string, t
     let touched = false;
     const assignments = p.assignments.map((a) => {
       if (a.removedAt) return a;
+      // Al revalidar se conservan las excepciones y bonificaciones manuales.
+      if (opts.revalidate && a.exception) return a;
       const c = collabs.get(a.collaboratorId);
       const policy = c ? policies.get(c.policyId) : undefined;
       if (!c || !policy) throw new DomainError(`No se encontró el colaborador o la política de una asignación del proyecto ${p.code}.`);
@@ -93,8 +110,8 @@ export async function validateMonth(tx: Tx, yearMonth: string, userId: string, t
   audit(tx, {
     entity: "MonthlySales",
     entityId: yearMonth,
-    action: "VALIDATE",
-    summary: `Mes ${formatMonth(yearMonth)} validado: ventas ${formatMoney(sales, "COP", 0)} / meta ${formatMoney(goal, "COP", 0)} → ${evaluation.reached ? "elegible" : "no elegible"} (${applied.length} asignaciones fijadas)`,
+    action: opts.revalidate ? "REVALIDATE" : "VALIDATE",
+    summary: `Mes ${formatMonth(yearMonth)} ${opts.revalidate ? "revalidado" : "validado"}: ventas ${formatMoney(sales, "COP", 0)} / meta ${formatMoney(goal, "COP", 0)} → ${evaluation.reached ? "elegible" : "no elegible"} (${applied.length} asignaciones fijadas)`,
     before: month,
     after,
     userId,
