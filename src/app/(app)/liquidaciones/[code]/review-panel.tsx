@@ -19,6 +19,12 @@ import { D } from "@/domain/money";
 import { setProjectReviewAction, setRateExceptionAction } from "@/server/actions/settlements";
 import type { ProjectReviewAssignment, ProjectReviewView } from "@/server/queries/settlements";
 
+const SEMAPHORE = {
+  ELIGIBLE: { label: "El mes de venta cumplió la meta", dot: "bg-green-600" },
+  NOT_ELIGIBLE: { label: "El mes de venta no cumplió la meta", dot: "bg-red-600" },
+  PENDING: { label: "Mes de venta sin validar", dot: "bg-gray-400" },
+} as const;
+
 const REVIEW_BADGE = {
   ACCEPTED: { label: "Aceptado", variant: "success" },
   STALE: { label: "Cambió: revísalo de nuevo", variant: "warning" },
@@ -154,11 +160,14 @@ export function ProjectReviewPanel({ code, projects, readOnly, invoiceable }: { 
             <li key={p.projectId} className={`rounded-lg border ${st === "ACCEPTED" ? "border-brand-mint bg-success-soft/40" : ""}`}>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
                 <span className="min-w-[180px] flex-1">
-                  <Link href={`/proyectos/${p.projectId}`} className="num font-semibold text-brand-deep underline-offset-4 hover:underline">
-                    {p.projectCode}
-                  </Link>
+                  <span className="flex items-center gap-2">
+                    <span role="img" aria-label={SEMAPHORE[p.monthOutcome].label} title={SEMAPHORE[p.monthOutcome].label} className={`inline-block size-3 shrink-0 rounded-full ${SEMAPHORE[p.monthOutcome].dot}`} />
+                    <Link href={`/proyectos/${p.projectId}`} className="num font-semibold text-brand-deep underline-offset-4 hover:underline">
+                      {p.projectCode}
+                    </Link>
+                  </span>
                   <span className="block text-xs text-muted-foreground">
-                    Venta {formatMonthShort(p.saleMonth)} · {p.people.join(", ")} · {p.lines.length} línea(s)
+                    Venta {formatMonthShort(p.saleMonth)} · {p.people.join(", ")} · {p.lines.length === 0 ? "sin comisión en esta liquidación" : `${p.lines.length} línea(s)`}
                   </span>
                 </span>
                 <span className="num text-right text-sm font-semibold">{formatMoney(p.total, "COP", 2)}</span>

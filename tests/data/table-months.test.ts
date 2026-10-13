@@ -6,6 +6,7 @@ vi.mock("@/server/auth", () => ({ requireSession: async () => ({ userId: "u1", e
 
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
+import { setProjectReviewAction } from "@/server/actions/settlements";
 import { getSettlementView, projectTable, salesSweep } from "@/server/queries/settlements";
 import { validateMonth } from "@/server/services/months";
 import { bootstrapBase } from "@/store/bootstrap";
@@ -41,5 +42,20 @@ suite("tabla de proyectos del período: todos los meses, cumplan o no la meta, v
     const table = await projectTable(view);
     expect(table.map((r) => [r.projectCode, r.monthOutcome])).toEqual([["P-ABR", "ELIGIBLE"], ["P-JUL", "NOT_ELIGIBLE"], ["P-AGO", "PENDING"], ["P-SEP", "PENDING"]]);
     expect((await salesSweep(view))[0].rows.map((r) => r.projectCode)).toEqual(["P-ABR", "P-JUL", "P-AGO", "P-SEP"]);
+  });
+});
+
+suite("revisión por proyecto: también los proyectos del período sin comisión", () => {
+  it("lista un proyecto de un mes que no cumplió la meta, con su semáforo, y permite aceptarlo", async () => {
+    await clearFirestore();
+    await bootstrapBase({ email: "admin@haptica.co", name: "Admin", passwordHash: "x" });
+    await ref(C.users, "u1").set({ id: "u1", email: "t@t.co", name: "Tester", role: "ADMIN", passwordHash: "x", createdAt: "x", updatedAt: "x" });
+    const ana = id(await saveCollaboratorAction(null, { fullName: "Ana", email: "a@t.co", position: "Analista", status: "ACTIVE", policyId: "GENERAL", joinDate: "", notes: "" }));
+    id(await saveProjectAction(null, { code: "AVAL-01", client: "Cliente SA", country: "CO", saleDate: "2026-07-22", currency: "COP", saleAmount: "100000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
+    await runTx((tx) => validateMonth(tx, "2026-07", "u1", "2026-10-13"));
+    const view = await getSettlementView(2026, "OCTOBER");
+    expect(view.projects.map((p) => [p.projectCode, p.monthOutcome, p.lines.length, p.people])).toEqual([["AVAL-01", "NOT_ELIGIBLE", 0, ["Ana"]]]);
+    expect((await setProjectReviewAction({ code: "LIQ-2026-10", projectCode: "AVAL-01", accepted: true })).ok).toBe(true);
+    expect((await getSettlementView(2026, "OCTOBER")).projects[0].review).toBe("ACCEPTED");
   });
 });

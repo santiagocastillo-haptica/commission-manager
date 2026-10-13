@@ -95,6 +95,8 @@ export interface ProjectReviewView {
   projectId: string;
   projectCode: string;
   saleMonth: string;
+  /** Meta del mes de venta (semáforo): ELIGIBLE, NOT_ELIGIBLE o PENDING (mes sin validar). */
+  monthOutcome: "ELIGIBLE" | "NOT_ELIGIBLE" | "PENDING";
   people: string[];
   /** Asignaciones del proyecto (para excepciones de porcentaje). */
   assignments: ProjectReviewAssignment[];
@@ -336,7 +338,7 @@ export function projectFingerprint(lines: { netBaseCOP: string; commissionCOP: s
   return `${lines.length}|${base.toFixed(2)}|${total.toFixed(2)}`;
 }
 
-export async function projectReviews(collaborators: CollaboratorView[], code: string, approved = false): Promise<ProjectReviewView[]> {
+export async function projectReviews(collaborators: CollaboratorView[], code: string, approved = false, period?: Pick<SettlementPeriod, "periodStart" | "periodEnd">): Promise<ProjectReviewView[]> {
   const snap = await ref(C.settlementReviews, code).get();
   const doc = snap.exists ? (snap.data() as SettlementReviewDoc) : null;
   const groups = new Map<string, ProjectReviewView>();
@@ -344,7 +346,7 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
     for (const l of c.lines) {
       let g = groups.get(l.projectId);
       if (!g) {
-        g = { projectId: l.projectId, projectCode: l.projectCode, saleMonth: l.saleMonth, people: [], assignments: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null };
+        g = { projectId: l.projectId, projectCode: l.projectCode, saleMonth: l.saleMonth, monthOutcome: "PENDING", people: [], assignments: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null };
         groups.set(l.projectId, g);
       }
       if (!g.people.includes(c.name)) g.people.push(c.name);
@@ -354,6 +356,27 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
   }
   const names = new Map<string, string | null>();
   const projectDocs = new Map((await col(C.projects).get()).docs.map((d) => [d.id, d.data() as ProjectDoc]));
+  // Todo proyecto vendido en los meses del período se revisa, aunque no genere comisión en esta liquidación
+  // (p. ej. porque su mes no cumplió la meta); y de cada proyecto se listan todas las personas asignadas.
+  const months = new Map((await col(C.monthlySales).get()).docs.map((d) => [d.id, d.data() as MonthlySalesDoc]));
+  const people = new Map((await col(C.collaborators).get()).docs.map((d) => [d.id, (d.data() as CollaboratorDoc).fullName]));
+  for (const p of projectDocs.values()) {
+    if (p.voidedAt || !period || p.saleDate < period.periodStart || p.saleDate > period.periodEnd || groups.has(p.id)) continue;
+    groups.set(p.id, { projectId: p.id, projectCode: p.code, saleMonth: p.saleMonth, monthOutcome: "PENDING", people: [], assignments: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null });
+  }
+  for (const g of groups.values()) {
+    const p = projectDocs.get(g.projectId);
+    const m = months.get(g.saleMonth);
+    g.monthOutcome = m?.status === "VALIDATED" && m.outcome ? m.outcome : "PENDING";
+    for (const a of p?.assignments ?? []) {
+      if (a.removedAt) continue;
+      const name = people.get(a.collaboratorId) ?? a.collaboratorId;
+      if (!g.people.includes(name)) g.people.push(name);
+      if (!g.assignments.some((x) => x.assignmentId === a.id)) {
+        g.assignments.push({ assignmentId: a.id, collaborator: name, baseRate: a.baseRate, effectiveRate: a.effectiveRate ?? "0", exceptionReason: null, exceptionBy: null });
+      }
+    }
+  }
   const rows = [...groups.values()].sort((a, b) => a.projectCode.localeCompare(b.projectCode, undefined, { numeric: true }));
   for (const g of rows) {
     for (const a of g.assignments) {
@@ -381,7 +404,7 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
 
 export async function getSettlementView(year: number, half: SettlementHalf): Promise<SettlementView> {
   const view = await buildSettlementView(year, half);
-  return { ...view, projects: await projectReviews(view.collaborators, view.period.code, view.status === "APPROVED") };
+  return { ...view, projects: await projectReviews(view.collaborators, view.period.code, view.status === "APPROVED", view.period) };
 }
 
 // ───────────── Barrido de ventas del período por colaborador ─────────────
