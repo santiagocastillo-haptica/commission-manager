@@ -316,6 +316,9 @@ export interface CollaboratorSettlementRow {
   paymentDate: DateOnly;
   netPayable: string;
   paymentStatus: "PENDING" | "PARTIAL" | "PAID";
+  /** Tiene comisiones «naturales» (reporte de comisiones) y/o bonificaciones (carta de bonificación). */
+  hasCommissions: boolean;
+  hasBonus: boolean;
 }
 
 /** Liquidaciones individuales de un colaborador (solo aprobadas), de reciente a antigua. */
@@ -326,7 +329,11 @@ export async function listCollaboratorSettlements(collaboratorId: string): Promi
     const snap = await peopleCol(s.code).doc(collaboratorId).get();
     if (!snap.exists) continue;
     const p = snap.data() as PersonSettlementDoc;
-    rows.push({ code: s.code, paymentDate: s.paymentDate, netPayable: D(p.netPayable).toFixed(), paymentStatus: p.paymentStatus });
+    const lines = (await linesCol(s.code).where("collaboratorId", "==", collaboratorId).get()).docs.map((d) => (d.data() as SettlementLineDoc).snapshot as LineSnapshot);
+    rows.push({
+      code: s.code, paymentDate: s.paymentDate, netPayable: D(p.netPayable).toFixed(), paymentStatus: p.paymentStatus,
+      hasCommissions: lines.some((l) => !l.bonus) || !D(p.carryoverIn).isZero(), hasBonus: lines.some((l) => l.bonus),
+    });
   }
   return rows.sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
 }

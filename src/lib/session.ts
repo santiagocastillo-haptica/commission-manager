@@ -9,7 +9,9 @@ export interface SessionPayload {
   userId: string;
   email: string;
   name: string;
-  role: "ADMIN";
+  role: "ADMIN" | "COLLABORATOR";
+  /** Solo para COLLABORATOR: el colaborador cuyos datos puede ver. */
+  collaboratorId?: string;
 }
 
 function key() {
@@ -35,7 +37,8 @@ export async function verifySession(token: string | undefined): Promise<SessionP
       userId: String(payload.userId),
       email: String(payload.email),
       name: String(payload.name),
-      role: "ADMIN",
+      role: payload.role === "COLLABORATOR" ? "COLLABORATOR" : "ADMIN",
+      collaboratorId: typeof payload.collaboratorId === "string" ? payload.collaboratorId : undefined,
     };
   } catch {
     return null;

@@ -30,7 +30,9 @@ export interface UserDoc {
   email: string;
   name: string;
   passwordHash: string;
-  role: "ADMIN";
+  /** ADMIN: ve y gestiona todo. COLLABORATOR: solo ve sus propios datos (`collaboratorId`). */
+  role: "ADMIN" | "COLLABORATOR";
+  collaboratorId?: string | null;
   createdAt: Iso;
 }
 

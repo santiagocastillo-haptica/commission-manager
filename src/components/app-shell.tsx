@@ -9,6 +9,8 @@ import { ProductName } from "@/components/brand";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
+const COLLABORATOR_NAV = [{ href: "/mi-cuenta", label: "Mis comisiones", icon: Wallet }] as const;
+
 const NAV = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/proyectos", label: "Proyectos", icon: FolderKanban },
@@ -18,11 +20,12 @@ const NAV = [
   { href: "/configuracion", label: "Configuración", icon: Settings },
 ] as const;
 
-function NavList({ onNavigate }: { onNavigate?: () => void }) {
+function NavList({ onNavigate, variant }: { onNavigate?: () => void; variant: "admin" | "collaborator" }) {
   const pathname = usePathname();
+  const NAV_ITEMS = variant === "collaborator" ? COLLABORATOR_NAV : NAV;
   return (
     <nav aria-label="Principal" className="flex flex-col gap-1">
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
           <Link
@@ -46,14 +49,14 @@ function NavList({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function SidebarBody({ user, onNavigate }: { user: { name: string; email: string }; onNavigate?: () => void }) {
+function SidebarBody({ user, onNavigate, variant }: { user: { name: string; email: string }; onNavigate?: () => void; variant: "admin" | "collaborator" }) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <div className="px-6 pt-7 pb-8">
         <ProductName tone="light" />
       </div>
       <div className="flex-1 px-3">
-        <NavList onNavigate={onNavigate} />
+        <NavList onNavigate={onNavigate} variant={variant} />
       </div>
       <div className="border-t border-sidebar-border p-4">
         <p className="truncate text-sm font-semibold text-white">{user.name}</p>
@@ -71,12 +74,12 @@ function SidebarBody({ user, onNavigate }: { user: { name: string; email: string
   );
 }
 
-export function AppShell({ user, children }: { user: { name: string; email: string }; children: React.ReactNode }) {
+export function AppShell({ user, children, variant = "admin" }: { user: { name: string; email: string }; children: React.ReactNode; variant?: "admin" | "collaborator" }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[256px_1fr]">
       <aside className="sticky top-0 hidden h-screen lg:block">
-        <SidebarBody user={user} />
+        <SidebarBody user={user} variant={variant} />
       </aside>
 
       <div className="flex min-w-0 flex-col">
@@ -94,7 +97,7 @@ export function AppShell({ user, children }: { user: { name: string; email: stri
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetContent side="left" className="w-[280px] gap-0 border-0 p-0" showCloseButton={false}>
             <SheetTitle className="sr-only">Menú principal</SheetTitle>
-            <SidebarBody user={user} onNavigate={() => setOpen(false)} />
+            <SidebarBody user={user} variant={variant} onNavigate={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
 

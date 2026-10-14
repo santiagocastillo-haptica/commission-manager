@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE, SESSION_HOURS, signSession, verifySession, type SessionPayload } from "@/lib/session";
-import { C, col, encodeKey, ref, runTx, now, type LoginThrottleDoc, type UserDoc } from "@/store";
+import { C, col, encodeKey, ref, runTx, now, type CollaboratorDoc, type LoginThrottleDoc, type UserDoc } from "@/store";
 
 async function readCookieSession(): Promise<SessionPayload | null> {
   const jar = await cookies();
@@ -17,12 +17,31 @@ async function readCookieSession(): Promise<SessionPayload | null> {
 export async function getSession(): Promise<SessionPayload | null> {
   const session = await readCookieSession();
   if (!session) return null;
-  const exists = (await ref(C.users, session.userId).get()).exists;
-  return exists ? session : null;
+  const snap = await ref(C.users, session.userId).get();
+  if (!snap.exists) return null;
+  const user = snap.data() as UserDoc;
+  // Quien entra como colaborador deja de tener acceso si lo inactivan o lo eliminan.
+  if (user.role === "COLLABORATOR") {
+    const c = user.collaboratorId ? await ref(C.collaborators, user.collaboratorId).get() : null;
+    if (!c?.exists || (c.data() as CollaboratorDoc).status !== "ACTIVE") return null;
+    return { ...session, role: "COLLABORATOR", collaboratorId: user.collaboratorId ?? undefined };
+  }
+  return { ...session, role: "ADMIN", collaboratorId: undefined };
 }
 
-/** Úsese al inicio de cada página y de cada Server Action: las acciones son alcanzables por POST directo. */
+/**
+ * Úsese al inicio de cada página y de cada Server Action de administración: las acciones son alcanzables por POST directo.
+ * Solo deja pasar a administradores; un colaborador es enviado a su propia página.
+ */
 export async function requireSession(): Promise<SessionPayload> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (session.role !== "ADMIN") redirect("/mi-cuenta");
+  return session;
+}
+
+/** Sesión de cualquier rol (administrador o colaborador); solo para las páginas pensadas para colaboradores. */
+export async function requireUser(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
   return session;
@@ -84,8 +103,8 @@ export async function authenticate(email: string, password: string): Promise<{ o
 }
 
 /** Crea la cookie de sesión (JWT httpOnly) de un usuario ya verificado. */
-export async function startSession(user: Pick<UserDoc, "id" | "email" | "name" | "role">) {
-  const token = await signSession({ userId: user.id, email: user.email, name: user.name, role: user.role });
+export async function startSession(user: Pick<UserDoc, "id" | "email" | "name" | "role" | "collaboratorId">) {
+  const token = await signSession({ userId: user.id, email: user.email, name: user.name, role: user.role, collaboratorId: user.collaboratorId ?? undefined });
   const jar = await cookies();
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,

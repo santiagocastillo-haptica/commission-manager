@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 export async function GET(req: Request, ctx: RouteContext<"/api/liquidaciones/[code]/bonificacion/[collaboratorId]">) {
   const { code, collaboratorId } = await ctx.params;
-  const auth = await authorizedReport(code);
+  const auth = await authorizedReport(code, { collaboratorId });
   if ("error" in auth) return auth.error;
   const collab = auth.data.collaborators.find((c) => c.collaboratorId === collaboratorId);
   if (!collab || bonusLines(collab).length === 0) return new Response("El colaborador no tiene bonificaciones en esta liquidación.", { status: 404 });

@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 export async function GET(req: Request, ctx: RouteContext<"/api/liquidaciones/[code]/individual/[collaboratorId]">) {
   const { code, collaboratorId } = await ctx.params;
-  const auth = await authorizedReport(code);
+  const auth = await authorizedReport(code, { collaboratorId });
   if ("error" in auth) return auth.error;
   const collab = auth.data.collaborators.find((c) => c.collaboratorId === collaboratorId);
   if (!collab) return new Response("El colaborador no tiene comisiones en esta liquidación.", { status: 404 });

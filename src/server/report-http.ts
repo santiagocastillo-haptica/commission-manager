@@ -11,8 +11,16 @@ export const slug = (s: string) =>
     .replace(/[^a-zA-Z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-export async function authorizedReport(code: string): Promise<{ data: ReportData } | { error: Response }> {
-  if (!(await getSession())) return { error: new Response("No autorizado", { status: 401 }) };
+/**
+ * Reporte de una liquidación aprobada. Por defecto solo para administradores; si se indica `collaboratorId`, un colaborador
+ * puede obtener únicamente el suyo.
+ */
+export async function authorizedReport(code: string, opts: { collaboratorId?: string } = {}): Promise<{ data: ReportData } | { error: Response }> {
+  const session = await getSession();
+  if (!session) return { error: new Response("No autorizado", { status: 401 }) };
+  if (session.role !== "ADMIN" && (!opts.collaboratorId || session.collaboratorId !== opts.collaboratorId)) {
+    return { error: new Response("No autorizado", { status: 403 }) };
+  }
   const data = await getReportData(code);
   if (!data) return { error: new Response("La liquidación no existe o aún no está aprobada.", { status: 404 }) };
   return { data };

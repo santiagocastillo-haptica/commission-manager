@@ -1,9 +1,9 @@
 import "server-only";
 import { getAuth } from "firebase-admin/auth";
-import { C, adminApp, col } from "@/store";
+import { C, adminApp, col, now, ref } from "@/store";
 import { bootstrapBase } from "@/store/bootstrap";
 import { clientIp, isThrottled, recordFailure, startSession } from "./auth";
-import type { UserDoc } from "@/store";
+import type { CollaboratorDoc, UserDoc } from "@/store";
 
 export type GoogleLoginResult = { ok: true } | { ok: false; error: string };
 
@@ -26,6 +26,18 @@ export async function loginWithGoogleEmail(emailRaw: string, name: string): Prom
     await bootstrapBase({ email, name: name || "Administrador", passwordHash: "" });
     const created = await col(C.users).where("email", "==", email).limit(1).get();
     user = created.empty ? null : (created.docs[0].data() as UserDoc);
+  }
+  if (!user) {
+    // Un colaborador activo registrado por el administrador entra con su correo, solo para ver lo suyo.
+    const person = await col(C.collaborators).where("email", "==", email).limit(1).get();
+    const collaborator = person.empty ? null : (person.docs[0].data() as CollaboratorDoc);
+    if (collaborator && collaborator.status === "ACTIVE") {
+      const id = `collab-${collaborator.id}`;
+      const t = now();
+      const doc: UserDoc = { id, email, name: collaborator.fullName, passwordHash: "", role: "COLLABORATOR", collaboratorId: collaborator.id, createdAt: t };
+      await ref(C.users, id).set(doc);
+      user = doc;
+    }
   }
   if (!user) {
     await recordFailure(ipKey);

@@ -44,3 +44,7 @@ Reglas útiles:
 - Detalle de cada proyecto → «Historial de cambios» y «Historial de porcentajes».
 - Configuración → Auditoría: bitácora de solo inserción de todos los cambios relevantes.
 - Cada reporte generado queda registrado con la huella (SHA-256) de su contenido.
+
+## Acceso de los colaboradores
+
+Cada colaborador activo puede entrar con **Google** usando el correo con el que está registrado en **Colaboradores**: no hay que crear nada más. Al entrar ve únicamente la página **Mis comisiones** (solo lectura): sus proyectos, sus comisiones generadas, liquidadas y pagadas, y la descarga de sus propios reportes y cartas de bonificación. No ve a otras personas, sus porcentajes ni ninguna pantalla de administración. Si lo marcas como **inactivo**, pierde el acceso de inmediato. Si el correo del colaborador está mal escrito, no podrá entrar: corrígelo en su ficha.

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { collaboratorMayAccess } from "@/lib/access";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 /**
@@ -11,6 +12,10 @@ export async function proxy(request: NextRequest) {
     const url = new URL("/login", request.url);
     if (request.nextUrl.pathname !== "/") url.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
     return NextResponse.redirect(url);
+  }
+  // Un colaborador solo puede ver su propia página y descargar sus propios reportes.
+  if (session.role === "COLLABORATOR" && !collaboratorMayAccess(request.nextUrl.pathname)) {
+    return NextResponse.redirect(new URL("/mi-cuenta", request.url));
   }
   return NextResponse.next();
 }

@@ -14,7 +14,8 @@ export const maxDuration = 60;
  * ?tipo=individual | administrativo-pdf | administrativo-xlsx
  */
 export async function GET(req: Request) {
-  if (!(await getSession())) return new Response("No autorizado", { status: 401 });
+  const session = await getSession();
+  if (!session || session.role !== "ADMIN") return new Response("No autorizado", { status: 401 });
   const tipo = new URL(req.url).searchParams.get("tipo") ?? "individual";
   const data = sampleReportData(40);
   data.settlement = { ...data.settlement, label: "MUESTRA DE DIAGNÓSTICO", approver: "Datos sintéticos" };
