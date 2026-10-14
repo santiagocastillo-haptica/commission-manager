@@ -11,7 +11,7 @@ import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money
 import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth";
 import { invoiceableProjects } from "@/server/queries/billing";
-import { getSettlementView, parseSettlementCode, projectTable, salesSweep, type AlertView, type CollaboratorView, type ProjectTableRow, type SalesSweepPerson, type SettlementView } from "@/server/queries/settlements";
+import { getSettlementView, parseSettlementCode, projectTable, salesSweep, splitEarnings, type AlertView, type CollaboratorView, type ProjectTableRow, type SalesSweepPerson, type SettlementView } from "@/server/queries/settlements";
 import { ProjectReviewPanel } from "./review-panel";
 import { ProjectsTable } from "./projects-table";
 import { SalesSweep } from "./sales-sweep";
@@ -196,6 +196,7 @@ function LinesTable({ c }: { c: CollaboratorView }) {
               <TableRow key={l.key} className={adj ? "bg-warning-soft/60" : undefined}>
                 <TableCell>
                   <Link href={`/proyectos/${l.projectId}`} className="num font-semibold underline-offset-4 hover:underline">{l.projectCode}</Link>
+                  {l.bonus && <Badge variant="neutral" className="ml-1.5">Bonificación</Badge>}
                 </TableCell>
                 <TableCell className="capitalize">{formatMonthShort(l.saleMonth)}</TableCell>
                 <TableCell className="num">{adj ? <Badge variant="warning">Ajuste</Badge> : (l.invoiceNumber ?? "—")}</TableCell>
@@ -222,6 +223,7 @@ function LinesTable({ c }: { c: CollaboratorView }) {
 function StepReview({ view, year, half, invoiceable, sweep, table }: { table: ProjectTableRow[]; sweep: SalesSweepPerson[]; view: SettlementView; year: number; half: "APRIL" | "OCTOBER"; invoiceable: Awaited<ReturnType<typeof invoiceableProjects>> }) {
   const approved = view.status === "APPROVED";
   const lines = view.collaborators.reduce((a, c) => a + c.lines.length, 0);
+  const totalSplit = splitEarnings(view.collaborators.flatMap((c) => c.lines));
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -235,9 +237,10 @@ function StepReview({ view, year, half, invoiceable, sweep, table }: { table: Pr
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KPI label="Comisión bruta" value={formatMoney(view.grand.gross, "COP", 2)} />
-        <KPI label="Ajustes" value={formatMoney(view.grand.adjustments, "COP", 2)} />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <KPI label="Comisiones" value={formatMoney(totalSplit.commission, "COP", 2)} />
+        <KPI label="Bonificaciones" value={formatMoney(totalSplit.bonus, "COP", 2)} />
+        <KPI label="Ajustes" value={formatMoney(totalSplit.adjustments, "COP", 2)} />
         <KPI label="Neto a pagar" value={formatMoney(view.grand.netPayable, "COP", 2)} strong />
         <KPI label="Líneas / colaboradores" value={`${lines} / ${view.collaborators.length}`} />
       </div>
@@ -264,8 +267,7 @@ function StepReview({ view, year, half, invoiceable, sweep, table }: { table: Pr
                 <span className="font-semibold text-brand-deep">{c.name}</span>
                 <span className="block text-xs text-muted-foreground">{c.position} · {c.lines.length} línea(s)</span>
               </span>
-              <Figure label="Bruta" value={c.gross} />
-              <Figure label="Ajustes" value={c.adjustments} />
+              <Earnings c={c} />
               {!D(c.carryoverIn).isZero() && <Figure label="Saldo anterior" value={c.carryoverIn} />}
               <Figure label="Neto a pagar" value={c.netPayable} strong />
               {D(c.carryoverOut).isNegative() && <Badge variant="warning">Pasa {formatMoney(c.carryoverOut, "COP", 2)} a la siguiente</Badge>}
@@ -293,6 +295,18 @@ function KPI({ label, value, strong }: { label: string; value: string; strong?: 
       <p className={cn("eyebrow", strong && "!text-white/70")}>{label}</p>
       <p className="num mt-2 text-xl font-bold">{value}</p>
     </div>
+  );
+}
+
+/** Lo que gana la persona, desglosado: comisión de los recaudos, bonificación y ajustes. */
+function Earnings({ c }: { c: CollaboratorView }) {
+  const s = splitEarnings(c.lines);
+  return (
+    <>
+      <Figure label="Comisión" value={s.commission} />
+      {s.hasBonus && <Figure label="Bonificación" value={s.bonus} />}
+      <Figure label="Ajustes" value={s.adjustments} />
+    </>
   );
 }
 

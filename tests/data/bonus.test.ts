@@ -8,7 +8,7 @@ import { saveCollectionAction, saveInvoiceAction } from "@/server/actions/billin
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
 import { addProjectPersonAction, setRateExceptionAction } from "@/server/actions/settlements";
-import { getSettlementView, projectTable, salesSweep } from "@/server/queries/settlements";
+import { getSettlementView, projectTable, salesSweep, splitEarnings } from "@/server/queries/settlements";
 import { bonusLines, bonusTotal, renderBonusLetterPdf } from "@/reports/pdf/bonus-letter";
 import { hasNaturalReport, naturalCollab, renderIndividualPdf } from "@/reports/pdf/individual";
 import { getReportData } from "@/server/queries/settlements";
@@ -60,6 +60,10 @@ suite("barrido de ventas del período y bonificación", () => {
     view = await getSettlementView(2026, "OCTOBER");
     sweep = await salesSweep(view);
     expect(sweep[0].rows[0]).toMatchObject({ effectiveRate: "0.005", bonusReason: "Gran trabajo comercial", commissionHereCOP: "500000", manualException: false }); // 100M × 0,5 %
+
+    // el desglose de la revisión separa comisión y bonificación (también en el borrador)
+    const split = splitEarnings(view.collaborators.flatMap((c) => c.lines));
+    expect(split).toMatchObject({ commission: "0", bonus: "500000", adjustments: "0", hasBonus: true });
 
     // quitar la bonificación devuelve el proyecto a 0 %; se vuelve a dar para aprobarla
     expect((await setRateExceptionAction({ projectCode: "P-001", assignmentId: asgId, ratePercent: null, reason: "", kind: "BONUS" })).ok).toBe(true);

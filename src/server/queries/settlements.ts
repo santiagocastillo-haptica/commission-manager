@@ -33,6 +33,19 @@ export interface LineView {
   bonus?: boolean;
 }
 
+/** Separa lo que gana una persona en comisión «natural» (recaudos), bonificación y ajustes de comisión. */
+export function splitEarnings(lines: { type: "COLLECTION" | "ADJUSTMENT"; commissionCOP: string; bonus?: boolean }[]): { commission: string; bonus: string; adjustments: string; hasBonus: boolean } {
+  let commission = ZERO;
+  let bonus = ZERO;
+  let adjustments = ZERO;
+  for (const l of lines) {
+    if (l.bonus) bonus = bonus.plus(l.commissionCOP);
+    else if (l.type === "ADJUSTMENT") adjustments = adjustments.plus(l.commissionCOP);
+    else commission = commission.plus(l.commissionCOP);
+  }
+  return { commission: commission.toFixed(), bonus: bonus.toFixed(), adjustments: adjustments.toFixed(), hasBonus: lines.some((l) => l.bonus) };
+}
+
 export interface PaymentView {
   id: string;
   paidAt: DateOnly;
@@ -127,8 +140,9 @@ export interface SettlementView {
   projects: ProjectReviewView[];
 }
 
-function lineViewFromCalc(l: CalcLine, i: number): LineView {
+function lineViewFromCalc(l: CalcLine, i: number, bonusAssignments: Set<string>): LineView {
   return {
+    bonus: bonusAssignments.has(l.assignmentId),
     key: `calc-${i}`,
     assignmentId: l.assignmentId,
     type: l.type,
@@ -205,6 +219,7 @@ async function buildSettlementView(year: number, half: SettlementHalf): Promise<
   // Borrador o sin calcular: cálculo en vivo con el estado actual.
   const prepared = await prepareSettlement(plainReader, period);
   const { result } = prepared;
+  const bonusAssignments = new Set(prepared.projects.flatMap((p) => p.assignments.filter((a) => a.bonus).map((a) => a.id)));
   const wanted = new Set(result.totals.map((t) => t.collaboratorId));
   const collabs = new Map(
     (await col(C.collaborators).get()).docs.map((d) => d.data() as CollaboratorDoc).filter((c) => wanted.has(c.id)).map((c) => [c.id, c]),
@@ -214,7 +229,7 @@ async function buildSettlementView(year: number, half: SettlementHalf): Promise<
       collaboratorId: t.collaboratorId, name: collabs.get(t.collaboratorId)!.fullName, position: collabs.get(t.collaboratorId)!.position,
       gross: t.gross.toFixed(), adjustments: t.adjustments.toFixed(), carryoverIn: t.carryoverIn.toFixed(), netPayable: t.netPayable.toFixed(), carryoverOut: t.carryoverOut.toFixed(),
       csId: null, paymentStatus: null, paid: "0",
-      lines: result.lines.map((l, i) => ({ l, i })).filter(({ l }) => l.collaboratorId === t.collaboratorId).map(({ l, i }) => lineViewFromCalc(l, i)),
+      lines: result.lines.map((l, i) => ({ l, i })).filter(({ l }) => l.collaboratorId === t.collaboratorId).map(({ l, i }) => lineViewFromCalc(l, i, bonusAssignments)),
       payments: [],
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
