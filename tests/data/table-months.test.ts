@@ -4,6 +4,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/server/auth", () => ({ requireSession: async () => ({ userId: "u1", email: "t", name: "t", role: "ADMIN" }) }));
 
+import { saveCollectionAction, saveInvoiceAction } from "@/server/actions/billing";
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
 import { setProjectReviewAction } from "@/server/actions/settlements";
@@ -86,5 +87,23 @@ suite("revalidar un mes con la regla del 98 %", () => {
     expect(after.assignments.find((a) => a.collaboratorId === ana)).toMatchObject({ effectiveRate: "0.02", exception: { kind: "BONUS" } }); // la bonificación se conserva
     expect(((await ref(C.monthlySales, "2026-07").get()).data() as { outcome: string }).outcome).toBe("ELIGIBLE");
     expect((await revalidateMonthAction({ yearMonth: "2026-06" })).ok).toBe(false); // mes sin validar
+  });
+});
+
+suite("recaudos de proyectos vendidos antes del período", () => {
+  it("entran en la liquidación del período en que se recaudan, aunque el proyecto sea de otro", async () => {
+    await clearFirestore();
+    await bootstrapBase({ email: "admin@haptica.co", name: "Admin", passwordHash: "x" });
+    await ref(C.users, "u1").set({ id: "u1", email: "t@t.co", name: "Tester", role: "ADMIN", passwordHash: "x", createdAt: "x", updatedAt: "x" });
+    const ana = id(await saveCollaboratorAction(null, { fullName: "Ana", email: "a@t.co", position: "Analista", status: "ACTIVE", policyId: "GENERAL", joinDate: "", notes: "" }));
+    id(await saveProjectAction(null, { code: "ENE-01", client: "Cliente SA", country: "CO", saleDate: "2026-01-10", currency: "COP", saleAmount: "400000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]));
+    const inv = id(await saveInvoiceAction(null, { projectId: "ENE-01", number: "FV1", status: "ISSUED", issueDate: "2026-02-01", dueDate: "", amountPreTax: "100000000", netBaseExplicit: "", notes: "" } as Parameters<typeof saveInvoiceAction>[1]));
+    id(await saveCollectionAction(null, { invoiceId: inv, date: "2026-08-10", amountReceived: "100000000", isOverpaymentAdjustment: false, notes: "" } as Parameters<typeof saveCollectionAction>[1]));
+    await runTx((tx) => validateMonth(tx, "2026-01", "u1", "2026-10-13"));
+    const view = await getSettlementView(2026, "OCTOBER");
+    const prior = view.collaborators.flatMap((c) => c.lines).filter((l) => l.saleMonth < view.period.periodStart.slice(0, 7));
+    expect(prior.map((l) => [l.projectCode, l.saleMonth, l.commissionCOP])).toEqual([["ENE-01", "2026-01", "1000000"]]);
+    // y no figura en la tabla de proyectos vendidos en el período
+    expect(await projectTable(view)).toEqual([]);
   });
 });

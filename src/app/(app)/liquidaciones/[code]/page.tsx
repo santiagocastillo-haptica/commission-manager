@@ -172,7 +172,7 @@ function AlertList({ alerts }: { alerts: AlertView[] }) {
   );
 }
 
-function LinesTable({ c }: { c: CollaboratorView }) {
+function LinesTable({ c, periodStartMonth }: { c: CollaboratorView; periodStartMonth: string }) {
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -197,6 +197,7 @@ function LinesTable({ c }: { c: CollaboratorView }) {
                 <TableCell>
                   <Link href={`/proyectos/${l.projectId}`} className="num font-semibold underline-offset-4 hover:underline">{l.projectCode}</Link>
                   {l.bonus && <Badge variant="neutral" className="ml-1.5">Bonificación</Badge>}
+                  {l.saleMonth < periodStartMonth && <Badge variant="info" className="ml-1.5" title="Proyecto vendido en un período anterior">Venta anterior</Badge>}
                 </TableCell>
                 <TableCell className="capitalize">{formatMonthShort(l.saleMonth)}</TableCell>
                 <TableCell className="num">{adj ? <Badge variant="warning">Ajuste</Badge> : (l.invoiceNumber ?? "—")}</TableCell>
@@ -255,6 +256,8 @@ function StepReview({ view, year, half, invoiceable, sweep, table }: { table: Pr
 
       <ProjectsTable rows={table} readOnly={approved} />
 
+      <PriorSalesLines view={view} />
+
       <SalesSweep people={sweep} readOnly={approved} />
 
       <div className="space-y-3">
@@ -273,7 +276,7 @@ function StepReview({ view, year, half, invoiceable, sweep, table }: { table: Pr
               {D(c.carryoverOut).isNegative() && <Badge variant="warning">Pasa {formatMoney(c.carryoverOut, "COP", 2)} a la siguiente</Badge>}
             </summary>
             <div className="border-t">
-              <LinesTable c={c} />
+              <LinesTable c={c} periodStartMonth={view.period.periodStart.slice(0, 7)} />
             </div>
           </details>
         ))}
@@ -294,6 +297,76 @@ function KPI({ label, value, strong }: { label: string; value: string; strong?: 
     <div className={cn("rounded-lg border p-4", strong && "border-transparent bg-brand-deep text-white")}>
       <p className={cn("eyebrow", strong && "!text-white/70")}>{label}</p>
       <p className="num mt-2 text-xl font-bold">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * Recaudos de proyectos vendidos ANTES del período que entran en esta liquidación. Una liquidación incluye todo recaudo
+ * fechado dentro del período (o registrado tarde y aún sin liquidar), sin importar cuándo se vendió el proyecto.
+ */
+function PriorSalesLines({ view }: { view: SettlementView }) {
+  const startMonth = view.period.periodStart.slice(0, 7);
+  const rows = view.collaborators.flatMap((c) => c.lines.filter((l) => l.saleMonth < startMonth).map((l) => ({ person: c.name, line: l })));
+  rows.sort((a, b) => a.line.saleMonth.localeCompare(b.line.saleMonth) || a.line.projectCode.localeCompare(b.line.projectCode, undefined, { numeric: true }) || a.person.localeCompare(b.person));
+  const total = rows.reduce((acc, r) => acc.plus(r.line.commissionCOP), D(0));
+  const projects = new Set(rows.map((r) => r.line.projectId)).size;
+  const all = view.collaborators.reduce((acc, c) => acc.plus(splitEarnings(c.lines).commission).plus(splitEarnings(c.lines).bonus), D(0));
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-bold">Recaudos de proyectos vendidos en períodos anteriores</h3>
+      <p className="text-xs text-muted-foreground">
+        La liquidación incluye todo recaudo con fecha dentro del período ({formatDate(view.period.periodStart)} al {formatDate(view.period.periodEnd)}), sin importar cuándo se vendió el proyecto. Aquí ves los de proyectos vendidos antes de {formatMonthShort(startMonth)}.
+      </p>
+      {rows.length === 0 ? (
+        <p className="rounded-lg border px-4 py-3 text-sm text-muted-foreground">Ninguno: todas las líneas de esta liquidación son de proyectos vendidos en el período.</p>
+      ) : (
+        <>
+          <p className="text-sm">
+            <strong>{rows.length}</strong> línea(s) de <strong>{projects}</strong> proyecto(s) · <span className="num font-semibold">{formatMoney(total, "COP", 2)}</span>
+            {!all.isZero() && <span className="text-muted-foreground"> ({formatPercent(total.div(all), 1)} del total de comisión y bonificación)</span>}
+          </p>
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>Proyecto</TableHead>
+                  <TableHead>Venta</TableHead>
+                  <TableHead>Persona</TableHead>
+                  <TableHead>Factura</TableHead>
+                  <TableHead>Recaudo</TableHead>
+                  <TableHead className="text-right">Valor recaudado</TableHead>
+                  <TableHead className="text-right">%</TableHead>
+                  <TableHead className="text-right">Comisión (COP)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map(({ person, line: l }) => {
+                  const adj = l.type === "ADJUSTMENT";
+                  return (
+                    <TableRow key={`${person}-${l.key}`} className={adj ? "bg-warning-soft/60" : undefined}>
+                      <TableCell>
+                        <Link href={`/proyectos/${l.projectId}`} className="num font-semibold underline-offset-4 hover:underline">{l.projectCode}</Link>
+                        {l.bonus && <Badge variant="neutral" className="ml-1.5">Bonificación</Badge>}
+                      </TableCell>
+                      <TableCell className="capitalize">{formatMonthShort(l.saleMonth)}</TableCell>
+                      <TableCell>{person}</TableCell>
+                      <TableCell className="num">{adj ? <Badge variant="warning">Ajuste</Badge> : (l.invoiceNumber ?? "—")}</TableCell>
+                      <TableCell className="num whitespace-nowrap">
+                        {adj ? "—" : formatDate(l.collectionDate)}
+                        {l.isLate && <Badge variant="info" className="ml-1.5">Extemporáneo</Badge>}
+                      </TableCell>
+                      <TableCell className="num whitespace-nowrap text-right">{adj ? "—" : formatMoney(l.amountReceived, l.currency as CurrencyCode, 2)}</TableCell>
+                      <TableCell className="num text-right">{formatPercent(l.effectiveRate, 2)}</TableCell>
+                      <TableCell className="num text-right font-semibold">{formatMoney(l.commissionCOP, "COP", 2)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
