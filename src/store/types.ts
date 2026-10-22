@@ -308,7 +308,7 @@ export interface GeneratedReportDoc {
   id: string;
   settlementCode: string;
   collaboratorId: string | null;
-  kind: "INDIVIDUAL_PDF" | "BONUS_PDF" | "ADMIN_PDF" | "ADMIN_XLSX";
+  kind: "INDIVIDUAL_PDF" | "BONUS_PDF" | "FULL_PDF" | "ADMIN_PDF" | "ADMIN_XLSX";
   sha256: string;
   generatedAt: Iso;
 }

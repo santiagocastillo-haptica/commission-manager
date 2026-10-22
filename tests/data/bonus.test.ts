@@ -9,7 +9,10 @@ import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
 import { addProjectPersonAction, setRateExceptionAction } from "@/server/actions/settlements";
 import { getSettlementView, projectTable, salesSweep, splitEarnings } from "@/server/queries/settlements";
+import { PDFDocument } from "pdf-lib";
+import { renderAdministrativePdf } from "@/reports/pdf/administrative";
 import { bonusLines, bonusTotal, renderBonusLetterPdf } from "@/reports/pdf/bonus-letter";
+import { renderCompletePdf } from "@/reports/pdf/complete";
 import { hasNaturalReport, naturalCollab, renderIndividualPdf } from "@/reports/pdf/individual";
 import { getReportData } from "@/server/queries/settlements";
 import { validateMonth } from "@/server/services/months";
@@ -83,6 +86,12 @@ suite("barrido de ventas del período y bonificación", () => {
     const letter = await renderBonusLetterPdf(data, collab);
     expect(letter.subarray(0, 4).toString()).toBe("%PDF");
     expect((await renderIndividualPdf(data, collab)).subarray(0, 4).toString()).toBe("%PDF");
+
+    // un solo PDF con portada + administrativo + carta de bonificación
+    const full = await renderCompletePdf(data);
+    expect(full.subarray(0, 4).toString()).toBe("%PDF");
+    const pages = async (b: Buffer) => (await PDFDocument.load(b)).getPageCount();
+    expect(await pages(full)).toBe(1 + (await pages(await renderAdministrativePdf(data))) + (await pages(letter)));
   });
 });
 

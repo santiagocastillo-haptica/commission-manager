@@ -441,8 +441,11 @@ function StepReports({ view }: { view: SettlementView }) {
         Los reportes se generan desde la foto congelada al aprobar, por lo que siempre salen igual. Cada PDF lleva el identificador de la liquidación, la fecha de generación y espacios de firma para enviarlo al sistema de firma electrónica de Háptica.
       </p>
       <div className="flex flex-wrap gap-3">
-        <Button render={<a href={`/api/liquidaciones/${code}/zip`} download />}>
+        <Button variant="outline" render={<a href={`/api/liquidaciones/${code}/zip`} download />}>
           <FolderArchive data-icon="inline-start" /> Todos los PDF individuales y cartas (ZIP)
+        </Button>
+        <Button render={<a href={`/api/liquidaciones/${code}/completo`} download />}>
+          <FileText data-icon="inline-start" /> Todos los reportes en un solo PDF
         </Button>
         <Button variant="outline" render={<a href={`/api/liquidaciones/${code}/administrativo`} download />}>
           <FileText data-icon="inline-start" /> Reporte administrativo (PDF)
