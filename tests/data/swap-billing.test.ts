@@ -11,7 +11,7 @@ import { getSettlementView } from "@/server/queries/settlements";
 import { validateMonth } from "@/server/services/months";
 import { approveSettlement, calculateDraft, registerPayment, reopenSettlement } from "@/server/services/settlements";
 import { bootstrapBase } from "@/store/bootstrap";
-import { C, col, encodeKey, ref, runTx, type InvoiceDoc } from "@/store";
+import { C, col, encodeKey, ref, runTx, type InvoiceDoc, type ProjectDoc } from "@/store";
 import { clearFirestore, hasEmulator } from "../helpers/firestore";
 
 const suite = hasEmulator ? describe : describe.skip;
@@ -51,7 +51,7 @@ suite("intercambiar las facturas de dos proyectos", () => {
     let view = await getSettlementView(2026, "OCTOBER");
     expect(view.collaborators.map((c) => [c.name, c.gross])).toEqual([["Ana", "1000000"], ["Luis", "800000"]]);
 
-    const r = await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Se cargaron en el proyecto equivocado" });
+    const r = await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Se cargaron en el proyecto equivocado", scope: "BILLING" });
     expect(r.ok).toBe(true);
     expect(await owner("SPRC-06")).toEqual(["FV3"]);
     expect(await owner("SPRC-07")).toEqual(["FV1", "FV2"]);
@@ -66,13 +66,13 @@ suite("intercambiar las facturas de dos proyectos", () => {
 
   it("exige motivo, proyectos distintos y misma moneda, y no mueve nada si alguno ya tiene comisiones liquidadas", async () => {
     expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "corto" })).ok).toBe(false);
-    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-06", reason: "Motivo suficiente aquí" })).ok).toBe(false);
+    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-06", reason: "Motivo suficiente aquí", scope: "BILLING" })).ok).toBe(false);
     id(await project("USD-01", ana, "100000", "USD", "2026-06-10"));
-    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "USD-01", reason: "Motivo suficiente aquí" })).ok).toBe(false);
+    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "USD-01", reason: "Motivo suficiente aquí", scope: "BILLING" })).ok).toBe(false);
 
     await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", "u1"));
     await approveSettlement("LIQ-2026-10", "u1", []);
-    const r = await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Motivo suficiente aquí" });
+    const r = await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Motivo suficiente aquí", scope: "BILLING" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/comisiones liquidadas/);
     expect(await owner("SPRC-06")).toEqual(["FV1", "FV2"]);
@@ -80,7 +80,7 @@ suite("intercambiar las facturas de dos proyectos", () => {
 
   it("no cabe si las facturas superan la venta del otro proyecto", async () => {
     id(await project("CHICO-01", ana, "120000000", "COP", "2026-06-10"));
-    const r = await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "CHICO-01", reason: "Motivo suficiente aquí" });
+    const r = await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "CHICO-01", reason: "Motivo suficiente aquí", scope: "BILLING" });
     expect(r.ok).toBe(false); // las facturas de SPRC-06 suman 150M y CHICO-01 solo vende 120M
     if (!r.ok) expect(r.error).toMatch(/superan el valor de la venta/);
     expect(await owner("SPRC-06")).toEqual(["FV1", "FV2"]);
@@ -89,7 +89,7 @@ suite("intercambiar las facturas de dos proyectos", () => {
   it("una liquidación aprobada se puede reabrir (sin pagos), corregir con el intercambio y aprobar de nuevo", async () => {
     await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", "u1"));
     await approveSettlement("LIQ-2026-10", "u1", []);
-    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Motivo suficiente aquí" })).ok).toBe(false);
+    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Motivo suficiente aquí", scope: "BILLING" })).ok).toBe(false);
 
     await expect(runTx((tx) => reopenSettlement(tx, "LIQ-2026-10", "corto", "u1"))).rejects.toThrow(/motivo/);
     await runTx((tx) => reopenSettlement(tx, "LIQ-2026-10", "Facturas cargadas en el proyecto equivocado", "u1"));
@@ -112,5 +112,30 @@ suite("intercambiar las facturas de dos proyectos", () => {
     await runTx((tx) => registerPayment(tx, key, { paidAt: "2026-10-15", amount: "1000", reference: "REF-1" }, "u1"));
     await expect(runTx((tx) => reopenSettlement(tx, "LIQ-2026-10", "Motivo suficiente aquí", "u1"))).rejects.toThrow(/pagos registrados/);
     expect((await getSettlementView(2026, "OCTOBER")).status).toBe("APPROVED");
+  });
+
+  it("intercambia el proyecto completo (venta, fecha, personas y facturas) aunque las ventas no cuadren con las facturas del otro", async () => {
+    id(await project("SPRC-08", ana, "73450000", "COP", "2026-06-22"));
+    id(await project("SPRC-09", luis, "53700000", "COP", "2026-04-15"));
+    await invoice("SPRC-08", "FV8", "73450000", "73450000");
+    await invoice("SPRC-09", "FV9", "50000000");
+    // solo las facturas no caben: SPRC-08 factura 73,45M y SPRC-09 vende 53,7M
+    expect((await swapProjectBillingAction({ projectA: "SPRC-08", projectB: "SPRC-09", reason: "Motivo suficiente aquí", scope: "BILLING" })).ok).toBe(false);
+
+    // con las ventas en meses distintos, un mes validado lo impide
+    await runTx((tx) => validateMonth(tx, "2026-04", "u1", "2026-10-13"));
+    const blocked = await swapProjectBillingAction({ projectA: "SPRC-08", projectB: "SPRC-09", reason: "Motivo suficiente aquí", scope: "ALL" });
+    expect(blocked.ok).toBe(false);
+    if (!blocked.ok) expect(blocked.error).toMatch(/abril 2026 ya está validado/i);
+    await ref(C.monthlySales, "2026-04").update({ status: "REOPENED" });
+
+    const r = await swapProjectBillingAction({ projectA: "SPRC-08", projectB: "SPRC-09", reason: "Cambio de mes de venta", scope: "ALL" });
+    expect(r.ok).toBe(true);
+    const p8 = (await ref(C.projects, "SPRC-08").get()).data() as ProjectDoc;
+    const p9 = (await ref(C.projects, "SPRC-09").get()).data() as ProjectDoc;
+    expect(p8).toMatchObject({ code: "SPRC-08", saleDate: "2026-04-15", saleAmount: "53700000", client: "Cliente SPRC-09", saleMonth: "2026-04", collaboratorIds: [luis] });
+    expect(p9).toMatchObject({ code: "SPRC-09", saleDate: "2026-06-22", saleAmount: "73450000", client: "Cliente SPRC-08", saleMonth: "2026-06", collaboratorIds: [ana] });
+    expect(await owner("SPRC-08")).toEqual(["FV9"]);
+    expect(await owner("SPRC-09")).toEqual(["FV8"]);
   });
 });
