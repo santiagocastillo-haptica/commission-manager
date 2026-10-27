@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdjustmentFormDialog, InvoiceFormDialog, type InvoiceProjectRef } from "@/components/billing/dialogs";
+import { SwapBillingButton } from "@/components/billing/swap-billing-button";
 import { VoidAdjustmentButton, VoidProjectButton } from "@/components/billing/void-buttons";
 import { InvoiceTable } from "@/components/billing/invoice-table";
 import { EligibilityReason } from "@/components/eligibility-reason";
@@ -19,7 +20,7 @@ import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money
 import { requireSession } from "@/server/auth";
 import { listAdjustments, listInvoices, projectHistory } from "@/server/queries/billing";
 import { loadCommissionProjects, summarizeAssignments } from "@/server/queries/commissions";
-import { getProject, projectRateHistory } from "@/server/queries/projects";
+import { getProject, listProjects, projectRateHistory } from "@/server/queries/projects";
 
 export const metadata: Metadata = { title: "Proyecto" };
 
@@ -37,13 +38,15 @@ export default async function ProjectDetailPage({ params }: PageProps<"/proyecto
   const project = await getProject(id);
   if (!project) notFound();
 
-  const [invoices, adjustments, history, rateHistory, loaded] = await Promise.all([
+  const [invoices, adjustments, history, rateHistory, loaded, allProjects] = await Promise.all([
     listInvoices({ projectId: id }),
     listAdjustments(id),
     projectHistory(id),
     projectRateHistory(id),
     loadCommissionProjects({ projectId: id }),
+    listProjects({}),
   ]);
+  const swapOptions = allProjects.filter((p) => !p.voided && p.id !== id && p.currency === project.currency).map((p) => ({ code: p.code, client: p.client }));
   const commission = summarizeAssignments(loaded);
 
   const cur = project.currency as CurrencyCode;
@@ -73,6 +76,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/proyecto
               <Button render={<Link href={`/proyectos/${project.id}/editar`} />} variant="outline">
                 <Pencil data-icon="inline-start" /> Editar
               </Button>
+              <SwapBillingButton code={project.code} options={swapOptions} />
               <VoidProjectButton id={project.id} code={project.code} />
             </>
           )
