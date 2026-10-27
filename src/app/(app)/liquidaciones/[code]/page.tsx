@@ -14,6 +14,7 @@ import { invoiceableProjects } from "@/server/queries/billing";
 import { getSettlementView, parseSettlementCode, projectTable, salesSweep, splitEarnings, type AlertView, type CollaboratorView, type ProjectTableRow, type SalesSweepPerson, type SettlementView } from "@/server/queries/settlements";
 import { ProjectReviewPanel } from "./review-panel";
 import { ProjectsTable } from "./projects-table";
+import { ReopenSettlementButton } from "./reopen-settlement";
 import { SalesSweep } from "./sales-sweep";
 import { ApprovePanel, CalculateButton, DiscardButton, PaymentDialog } from "./wizard-client";
 
@@ -402,6 +403,7 @@ function StepApprove({ view }: { view: SettlementView }) {
           Aprobada y cerrada el {new Date(view.approvedAt!).toLocaleString("es-CO", { timeZone: "America/Bogota", dateStyle: "long", timeStyle: "short" })}
           {view.approver ? ` por ${view.approver}` : ""}. Es inmutable: las correcciones se registran como ajustes y se aplican en la siguiente liquidación.
         </p>
+        <ReopenSettlementButton code={view.period.code} />
         {view.alerts.length > 0 && (
           <>
             <h3 className="text-sm font-bold">Alertas reconocidas al aprobar</h3>
@@ -436,7 +438,10 @@ function StepReports({ view }: { view: SettlementView }) {
   const code = view.period.code;
   return (
     <section className="space-y-6">
-      <h2 className="text-lg font-bold">5 · Reportes</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-bold">5 · Reportes</h2>
+        <ReopenSettlementButton code={code} />
+      </div>
       <p className="max-w-3xl text-sm text-muted-foreground">
         Los reportes se generan desde la foto congelada al aprobar, por lo que siempre salen igual. Cada PDF lleva el identificador de la liquidación, la fecha de generación y espacios de firma para enviarlo al sistema de firma electrónica de Háptica.
       </p>

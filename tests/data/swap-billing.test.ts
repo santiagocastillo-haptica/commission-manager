@@ -9,7 +9,7 @@ import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
 import { getSettlementView } from "@/server/queries/settlements";
 import { validateMonth } from "@/server/services/months";
-import { approveSettlement, calculateDraft } from "@/server/services/settlements";
+import { approveSettlement, calculateDraft, registerPayment, reopenSettlement } from "@/server/services/settlements";
 import { bootstrapBase } from "@/store/bootstrap";
 import { C, col, encodeKey, ref, runTx, type InvoiceDoc } from "@/store";
 import { clearFirestore, hasEmulator } from "../helpers/firestore";
@@ -84,5 +84,33 @@ suite("intercambiar las facturas de dos proyectos", () => {
     expect(r.ok).toBe(false); // las facturas de SPRC-06 suman 150M y CHICO-01 solo vende 120M
     if (!r.ok) expect(r.error).toMatch(/superan el valor de la venta/);
     expect(await owner("SPRC-06")).toEqual(["FV1", "FV2"]);
+  });
+
+  it("una liquidación aprobada se puede reabrir (sin pagos), corregir con el intercambio y aprobar de nuevo", async () => {
+    await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", "u1"));
+    await approveSettlement("LIQ-2026-10", "u1", []);
+    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Motivo suficiente aquí" })).ok).toBe(false);
+
+    await expect(runTx((tx) => reopenSettlement(tx, "LIQ-2026-10", "corto", "u1"))).rejects.toThrow(/motivo/);
+    await runTx((tx) => reopenSettlement(tx, "LIQ-2026-10", "Facturas cargadas en el proyecto equivocado", "u1"));
+    expect((await ref(C.settlements, "LIQ-2026-10").get()).exists).toBe(false);
+    expect((await col(C.commitments).get()).size).toBe(0);
+    expect((await getSettlementView(2026, "OCTOBER")).status).toBe("NONE");
+
+    expect((await swapProjectBillingAction({ projectA: "SPRC-06", projectB: "SPRC-07", reason: "Se cargaron en el proyecto equivocado" })).ok).toBe(true);
+    await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", "u1"));
+    await approveSettlement("LIQ-2026-10", "u1", []);
+    const view = await getSettlementView(2026, "OCTOBER");
+    expect(view.status).toBe("APPROVED");
+    expect(view.collaborators.map((c) => [c.name, c.gross])).toEqual([["Ana", "800000"], ["Luis", "1000000"]]);
+  });
+
+  it("no se reabre si ya hay pagos registrados", async () => {
+    await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", "u1"));
+    await approveSettlement("LIQ-2026-10", "u1", []);
+    const key = (await getSettlementView(2026, "OCTOBER")).collaborators[0].csId!;
+    await runTx((tx) => registerPayment(tx, key, { paidAt: "2026-10-15", amount: "1000", reference: "REF-1" }, "u1"));
+    await expect(runTx((tx) => reopenSettlement(tx, "LIQ-2026-10", "Motivo suficiente aquí", "u1"))).rejects.toThrow(/pagos registrados/);
+    expect((await getSettlementView(2026, "OCTOBER")).status).toBe("APPROVED");
   });
 });

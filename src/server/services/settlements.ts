@@ -472,3 +472,44 @@ export async function discardDraft(tx: Tx, code: string, userId: string) {
   tx.delete(ref(C.settlementReviews, code)); // la revisión pertenece a ese borrador
   audit(tx, { entity: "Settlement", entityId: code, action: "DISCARD", summary: `Borrador de ${s.code} descartado`, userId });
 }
+
+// ───────────── Reapertura de una liquidación aprobada ─────────────
+
+/**
+ * Reabre una liquidación aprobada para corregir datos de origen (p. ej. facturas cargadas en el proyecto equivocado).
+ * Deshace el cierre: elimina sus líneas, compromisos de pago y liquidaciones individuales, y devuelve a «pendientes» los
+ * ajustes que había aplicado; la liquidación queda sin calcular (hay que calcularla y aprobarla de nuevo). Solo se permite
+ * si NO hay pagos registrados y no existe una liquidación posterior aprobada; es el último paso de una cadena cronológica.
+ * Los reportes ya descargados quedan obsoletos: hay que volver a generarlos tras aprobarla de nuevo.
+ */
+export async function reopenSettlement(tx: Tx, code: string, reason: string, userId: string) {
+  if (reason.trim().length < 10) throw new DomainError("Explica el motivo de la reapertura (mínimo 10 caracteres).");
+  const snap = await tx.get(settlementRef(code));
+  if (!snap.exists) throw new DomainError("La liquidación no existe.");
+  const s = snap.data() as SettlementDoc;
+  if (s.status !== "APPROVED") throw new DomainError("Solo se puede reabrir una liquidación aprobada.");
+
+  const later = (await tx.get(col(C.settlements))).docs.map((d) => d.data() as SettlementDoc).find((x) => x.code !== code && x.paymentDate > s.paymentDate && (x.status === "APPROVED" || x.status === "CLOSING"));
+  if (later) throw new DomainError(`No se puede reabrir: ya existe una liquidación posterior aprobada (${later.code}). Hay que reabrir primero la más reciente.`);
+
+  const people = (await tx.get(peopleCol(code))).docs;
+  const paid = people.filter((d) => (d.data() as PersonSettlementDoc).payments.length > 0);
+  if (paid.length > 0) {
+    throw new DomainError(`No se puede reabrir: ya hay pagos registrados a ${paid.length} colaborador(es). Las correcciones se registran como ajustes en la siguiente liquidación.`);
+  }
+  const lines = (await tx.get(linesCol(code))).docs;
+  const commitments = (await tx.get(col(C.commitments).where("settlementCode", "==", code))).docs;
+  const adjustments = (await tx.get(col(C.adjustments).where("appliedInSettlementId", "==", code))).docs;
+  const writes = lines.length + commitments.length + people.length + adjustments.length + 1;
+  if (writes > 450) throw new DomainError("La liquidación es demasiado grande para reabrirla de una vez. Contacta a soporte.");
+
+  for (const d of lines) tx.delete(d.ref);
+  for (const d of commitments) tx.delete(d.ref);
+  for (const d of people) tx.delete(d.ref);
+  for (const d of adjustments) tx.set(d.ref, { ...(d.data() as AdjustmentDoc), status: "PENDING", appliedInSettlementId: null });
+  tx.delete(settlementRef(code));
+  audit(tx, {
+    entity: "Settlement", entityId: code, action: "REOPEN", userId,
+    summary: `Liquidación ${code} reabierta (${lines.length} líneas, ${commitments.length} compromisos y ${people.length} liquidaciones individuales eliminados; ${adjustments.length} ajuste(s) devueltos a pendientes). Motivo: ${reason.trim()}`,
+  });
+}

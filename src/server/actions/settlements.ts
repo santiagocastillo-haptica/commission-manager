@@ -12,7 +12,7 @@ import { D, formatPercent } from "@/domain/money";
 import { DomainError } from "@/domain/project";
 import { requireSession } from "../auth";
 import { getSettlementView, parseSettlementCode } from "../queries/settlements";
-import { approveSettlement, calculateDraft, discardDraft, finishClosing, registerPayment } from "../services/settlements";
+import { approveSettlement, calculateDraft, discardDraft, finishClosing, registerPayment, reopenSettlement } from "../services/settlements";
 
 const periodSchema = z.object({ year: z.number().int().min(2020).max(2100), half: z.enum(["APRIL", "OCTOBER"]) });
 
@@ -287,6 +287,25 @@ export async function addProjectPersonAction(input: z.input<typeof addPersonSche
     for (const p of ["/liquidaciones", "/proyectos", "/colaboradores", "/"]) revalidatePath(p);
     revalidatePath(`/proyectos/${data.projectCode}`);
     return ok(undefined, "Persona agregada. Recalcula la liquidación para ver su comisión.");
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+const reopenSettlementSchema = z.object({ code: z.string().min(1), reason: z.string().trim().min(10, "Explica el motivo (mínimo 10 caracteres).").max(1000) });
+
+/** Reabre una liquidación aprobada (sin pagos registrados) para corregir sus datos de origen y volver a calcularla. */
+export async function reopenSettlementAction(input: z.input<typeof reopenSettlementSchema>): Promise<ActionResult> {
+  const session = await requireSession();
+  try {
+    const data = reopenSettlementSchema.parse(input);
+    if (!parseSettlementCode(data.code)) return { ok: false, error: "Liquidación no válida." };
+    await runTx(async (tx) => {
+      await assertNotClosing(tx);
+      await reopenSettlement(tx, data.code, data.reason, session.userId);
+    });
+    revalidateSettlements(data.code);
+    return ok(undefined, "Liquidación reabierta. Corrige lo que necesites, vuelve a calcularla y apruébala de nuevo.");
   } catch (e) {
     return toFailure(e);
   }
