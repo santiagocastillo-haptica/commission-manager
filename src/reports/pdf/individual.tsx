@@ -222,16 +222,10 @@ function IndividualDoc({ data, collab }: { data: ReportData; collab: Collab }) {
           </Text>
           <View style={s.sigRow}>
             <View style={s.sig}>
-              <Text style={s.bold}>Responsable administrativo</Text>
-              <Text style={s.muted}>Nombre, firma y fecha</Text>
+              <Text style={s.bold}>Santiago Castillo</Text>
             </View>
             <View style={s.sig}>
-              <Text style={s.bold}>Gerente Ejecutivo</Text>
-              <Text style={s.muted}>Nombre, firma y fecha</Text>
-            </View>
-            <View style={s.sig}>
-              <Text style={s.bold}>Colaborador: {snap.fullName}</Text>
-              <Text style={s.muted}>Firma y fecha</Text>
+              <Text style={s.bold}>{snap.fullName}</Text>
             </View>
           </View>
         </View>
