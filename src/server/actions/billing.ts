@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { formatMonth, isDateOnly, todayBogota, type DateOnly } from "@/domain/dates";
+import { isDateOnly, todayBogota, type DateOnly } from "@/domain/dates";
 import { D, formatMoney, type CurrencyCode } from "@/domain/money";
 import { DomainError } from "@/domain/project";
 import {
@@ -18,7 +18,7 @@ import {
 import { ok, toFailure, type ActionResult } from "@/server/action-result";
 import {
   C, assertNotClosing, audit, col, encodeKey, isSettled, newId, now, prepareUniques, ref, runTx,
-  type AdjustmentDoc, type CollectionDoc, type ExchangeRateDoc, type InvoiceDoc, type MonthlySalesDoc, type ProjectDoc,
+  type AdjustmentDoc, type CollectionDoc, type ExchangeRateDoc, type InvoiceDoc, type ProjectDoc,
 } from "@/store";
 import { requireSession } from "../auth";
 
@@ -440,14 +440,8 @@ export async function swapProjectBillingAction(input: z.input<typeof swapSchema>
       if (a.voidedAt || b.voidedAt) throw new DomainError("Un proyecto anulado no se puede modificar.");
       const all = data.scope === "ALL";
       if (!all && a.currency !== b.currency) throw new DomainError("Los proyectos tienen monedas distintas: para intercambiar solo las facturas deben tener la misma moneda. Intercambia el proyecto completo.");
-      // Si cambian de mes las ventas, el cumplimiento de la meta de esos meses cambia: no se puede con meses ya validados.
-      const monthSnaps = await Promise.all([tx.get(ref(C.monthlySales, a.saleMonth)), tx.get(ref(C.monthlySales, b.saleMonth))]);
-      if (all && a.saleMonth !== b.saleMonth) {
-        const validated = [a.saleMonth, b.saleMonth].filter((_, i) => monthSnaps[i].exists && (monthSnaps[i].data() as MonthlySalesDoc).status === "VALIDATED");
-        if (validated.length > 0) {
-          throw new DomainError(`Las ventas cambian de mes, y ${validated.map((m) => formatMonth(m)).join(" y ")} ya está validado: reabre ese mes primero (Configuración → Meta y ventas mensuales → Reabrir) y vuelve a validarlo después.`);
-        }
-      }
+      // Con el proyecto completo cada venta viaja con su mes, su meta y sus porcentajes ya fijados: el total de ventas de cada
+      // mes no cambia, así que funciona con meses validados. Solo con «solo facturas» las ventas se quedan donde están.
       for (const p of [a, b]) {
         if (await isSettled(tx, "projectId", p.id)) {
           throw new DomainError(`${p.code} ya tiene comisiones liquidadas: sus facturas y recaudos no se pueden mover. Registra un ajuste.`);

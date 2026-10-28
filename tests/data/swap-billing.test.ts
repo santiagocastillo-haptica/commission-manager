@@ -122,12 +122,11 @@ suite("intercambiar las facturas de dos proyectos", () => {
     // solo las facturas no caben: SPRC-08 factura 73,45M y SPRC-09 vende 53,7M
     expect((await swapProjectBillingAction({ projectA: "SPRC-08", projectB: "SPRC-09", reason: "Motivo suficiente aquí", scope: "BILLING" })).ok).toBe(false);
 
-    // con las ventas en meses distintos, un mes validado lo impide
+    // aunque los meses estén validados: cada venta viaja con su mes, así que los totales de ventas no cambian
     await runTx((tx) => validateMonth(tx, "2026-04", "u1", "2026-10-13"));
-    const blocked = await swapProjectBillingAction({ projectA: "SPRC-08", projectB: "SPRC-09", reason: "Motivo suficiente aquí", scope: "ALL" });
-    expect(blocked.ok).toBe(false);
-    if (!blocked.ok) expect(blocked.error).toMatch(/abril 2026 ya está validado/i);
-    await ref(C.monthlySales, "2026-04").update({ status: "REOPENED" });
+    await runTx((tx) => validateMonth(tx, "2026-06", "u1", "2026-10-13"));
+    const before = async () => ["2026-04", "2026-06"].map((m) => ref(C.monthlySales, m).get().then((s) => (s.data() as { validatedSalesCOP: string }).validatedSalesCOP));
+    const sales = await Promise.all(await before());
 
     const r = await swapProjectBillingAction({ projectA: "SPRC-08", projectB: "SPRC-09", reason: "Cambio de mes de venta", scope: "ALL" });
     expect(r.ok).toBe(true);
@@ -137,5 +136,6 @@ suite("intercambiar las facturas de dos proyectos", () => {
     expect(p9).toMatchObject({ code: "SPRC-09", saleDate: "2026-06-22", saleAmount: "73450000", client: "Cliente SPRC-08", saleMonth: "2026-06", collaboratorIds: [ana] });
     expect(await owner("SPRC-08")).toEqual(["FV9"]);
     expect(await owner("SPRC-09")).toEqual(["FV8"]);
+    expect(await Promise.all(await before())).toEqual(sales); // las ventas de cada mes quedan iguales
   });
 });
