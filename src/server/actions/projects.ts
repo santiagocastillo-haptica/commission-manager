@@ -166,6 +166,7 @@ export async function saveProjectAction(
         collaboratorIds: assignments.filter((a) => !a.removedAt).map((a) => a.collaboratorId),
         everAssignedIds: Array.from(new Set(assignments.map((a) => a.collaboratorId))),
         voidedAt: null, voidedById: null, voidReason: null,
+        closedAt: before?.closedAt ?? null, closedById: before?.closedById ?? null, closedNote: before?.closedNote ?? null,
         createdAt: before?.createdAt ?? t, createdById: before?.createdById ?? session.userId, updatedAt: t, updatedById: session.userId,
       };
 
@@ -184,6 +185,34 @@ export async function saveProjectAction(
 
     revalidateAll(projectId);
     return ok({ id: projectId }, id ? "Proyecto actualizado." : "Proyecto creado.");
+  } catch (e) {
+    return toFailure(e);
+  }
+}
+
+/** Da por cerrado (o reabre) un proyecto: deja de aparecer en las listas de las liquidaciones. No cambia ninguna comisión. */
+export async function setProjectClosedAction(input: { id: string; closed: boolean; note?: string }): Promise<ActionResult> {
+  const session = await requireSession();
+  try {
+    await runTx(async (tx) => {
+      const snap = await tx.get(ref(C.projects, input.id));
+      if (!snap.exists) throw new DomainError("El proyecto no existe.");
+      const p = snap.data() as ProjectDoc;
+      if (p.voidedAt) throw new DomainError("El proyecto está anulado.");
+      if (input.closed === Boolean(p.closedAt)) throw new DomainError(input.closed ? "El proyecto ya está cerrado." : "El proyecto no está cerrado.");
+      const t = now();
+      const after: ProjectDoc = input.closed
+        ? { ...p, closedAt: t, closedById: session.userId, closedNote: input.note?.trim() || null, updatedAt: t, updatedById: session.userId }
+        : { ...p, closedAt: null, closedById: null, closedNote: null, updatedAt: t, updatedById: session.userId };
+      tx.set(ref(C.projects, p.id), after);
+      audit(tx, {
+        entity: "Project", entityId: p.id, action: input.closed ? "CLOSE" : "UNCLOSE", userId: session.userId,
+        summary: input.closed ? `Proyecto ${p.code} dado por cerrado${input.note?.trim() ? `. Nota: ${input.note.trim()}` : ""}` : `Proyecto ${p.code} reabierto`,
+      });
+    });
+    revalidateAll(input.id);
+    revalidatePath("/liquidaciones");
+    return ok(undefined, input.closed ? "Proyecto cerrado: ya no aparece en las listas de las liquidaciones." : "Proyecto reabierto.");
   } catch (e) {
     return toFailure(e);
   }

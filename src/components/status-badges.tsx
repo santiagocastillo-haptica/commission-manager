@@ -37,6 +37,10 @@ export function ActiveBadge({ active }: { active: boolean }) {
   return active ? <Badge variant="success">Activo</Badge> : <Badge variant="neutral">Inactivo</Badge>;
 }
 
+export function ClosedBadge() {
+  return <Badge variant="neutral">Cerrado</Badge>;
+}
+
 export function VoidedBadge() {
   return (
     <Badge variant="danger">

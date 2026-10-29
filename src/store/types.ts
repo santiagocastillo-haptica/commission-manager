@@ -161,6 +161,10 @@ export interface ProjectDoc extends Stamped, Voidable {
   collaboratorIds: string[];
   /** Derivado: todos los colaboradores que alguna vez tuvieron asignación (incluye retirados). */
   everAssignedIds: string[];
+  /** Proyecto dado por cerrado: se oculta de las listas de las liquidaciones (sigue comisionando lo que tenga por liquidar). */
+  closedAt?: Iso | null;
+  closedById?: string | null;
+  closedNote?: string | null;
 }
 
 // ───────────── Facturas, recaudos y ajustes ─────────────

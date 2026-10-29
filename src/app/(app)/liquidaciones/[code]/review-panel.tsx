@@ -165,6 +165,7 @@ export function ProjectReviewPanel({ code, projects, readOnly, invoiceable }: { 
                     <Link href={`/proyectos/${p.projectId}`} className="num font-semibold text-brand-deep underline-offset-4 hover:underline">
                       {p.projectCode}
                     </Link>
+                    {p.closed && <Badge variant="neutral">Cerrado</Badge>}
                   </span>
                   <span className="block text-xs text-muted-foreground">
                     Venta {formatMonthShort(p.saleMonth)} · {p.people.join(", ")} · {p.lines.length === 0 ? "sin comisión en esta liquidación" : `${p.lines.length} línea(s)`}

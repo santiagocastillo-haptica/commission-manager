@@ -120,6 +120,8 @@ export interface ProjectReviewView {
   review: "ACCEPTED" | "STALE" | "PENDING";
   acceptedAt: string | null;
   acceptedBy: string | null;
+  /** Proyecto dado por cerrado que aún tiene líneas en esta liquidación (se sigue mostrando para revisarlas). */
+  closed?: boolean;
 }
 
 export interface SettlementView {
@@ -383,13 +385,14 @@ export async function projectReviews(collaborators: CollaboratorView[], code: st
   const months = new Map((await col(C.monthlySales).get()).docs.map((d) => [d.id, d.data() as MonthlySalesDoc]));
   const people = new Map((await col(C.collaborators).get()).docs.map((d) => [d.id, (d.data() as CollaboratorDoc).fullName]));
   for (const p of projectDocs.values()) {
-    if (p.voidedAt || !period || p.saleDate < period.periodStart || p.saleDate > period.periodEnd || groups.has(p.id)) continue;
+    if (p.voidedAt || p.closedAt || !period || p.saleDate < period.periodStart || p.saleDate > period.periodEnd || groups.has(p.id)) continue;
     groups.set(p.id, { projectId: p.id, projectCode: p.code, saleMonth: p.saleMonth, monthOutcome: "PENDING", people: [], assignments: [], lines: [], total: "0", fingerprint: "", review: "PENDING", acceptedAt: null, acceptedBy: null });
   }
   for (const g of groups.values()) {
     const p = projectDocs.get(g.projectId);
     const m = months.get(g.saleMonth);
     g.monthOutcome = m?.status === "VALIDATED" && m.outcome ? m.outcome : "PENDING";
+    g.closed = Boolean(p?.closedAt);
     for (const a of p?.assignments ?? []) {
       if (a.removedAt) continue;
       const name = people.get(a.collaboratorId) ?? a.collaboratorId;
@@ -462,7 +465,7 @@ export interface SalesSweepPerson {
 /** Proyectos vendidos dentro de las fechas del período, agrupados por colaborador, con el resultado de la meta de su mes. */
 export async function salesSweep(view: Pick<SettlementView, "period" | "collaborators">): Promise<SalesSweepPerson[]> {
   const { periodStart, periodEnd } = view.period;
-  const projects = (await col(C.projects).get()).docs.map((d) => d.data() as ProjectDoc).filter((p) => !p.voidedAt && p.saleDate >= periodStart && p.saleDate <= periodEnd);
+  const projects = (await col(C.projects).get()).docs.map((d) => d.data() as ProjectDoc).filter((p) => !p.voidedAt && !p.closedAt && p.saleDate >= periodStart && p.saleDate <= periodEnd);
   if (projects.length === 0) return [];
   const months = new Map((await col(C.monthlySales).get()).docs.map((d) => [d.id, d.data() as MonthlySalesDoc]));
   const people = new Map((await col(C.collaborators).get()).docs.map((d) => [d.id, d.data() as CollaboratorDoc]));
@@ -528,7 +531,7 @@ export async function projectTable(view: Pick<SettlementView, "period" | "collab
   const { periodStart, periodEnd } = view.period;
   const projects = (await col(C.projects).get()).docs
     .map((d) => d.data() as ProjectDoc)
-    .filter((p) => !p.voidedAt && p.saleDate >= periodStart && p.saleDate <= periodEnd);
+    .filter((p) => !p.voidedAt && !p.closedAt && p.saleDate >= periodStart && p.saleDate <= periodEnd);
   if (projects.length === 0) return [];
   const months = new Map((await col(C.monthlySales).get()).docs.map((d) => [d.id, d.data() as MonthlySalesDoc]));
   const ids = new Set(projects.map((p) => p.id));

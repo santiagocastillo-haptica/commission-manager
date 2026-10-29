@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AdjustmentFormDialog, InvoiceFormDialog, type InvoiceProjectRef } from "@/components/billing/dialogs";
+import { CloseProjectButton } from "@/components/billing/close-project-button";
 import { SwapBillingButton } from "@/components/billing/swap-billing-button";
 import { VoidAdjustmentButton, VoidProjectButton } from "@/components/billing/void-buttons";
 import { InvoiceTable } from "@/components/billing/invoice-table";
 import { EligibilityReason } from "@/components/eligibility-reason";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
-import { BillingBadge, CollectionBadge, VoidedBadge } from "@/components/status-badges";
+import { BillingBadge, ClosedBadge, CollectionBadge, VoidedBadge } from "@/components/status-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,6 +77,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/proyecto
               <Button render={<Link href={`/proyectos/${project.id}/editar`} />} variant="outline">
                 <Pencil data-icon="inline-start" /> Editar
               </Button>
+              <CloseProjectButton id={project.id} code={project.code} closed={project.closed} />
               <SwapBillingButton code={project.code} options={swapOptions} />
               <VoidProjectButton id={project.id} code={project.code} />
             </>
@@ -91,6 +93,7 @@ export default async function ProjectDetailPage({ params }: PageProps<"/proyecto
         <EligibilityReason status={project.eligibility.status} reason={project.eligibility.reason} />
         <BillingBadge status={project.fin.billingStatus} />
         <CollectionBadge status={project.fin.collectionStatus} />
+        {project.closed && <ClosedBadge />}
         <span className="text-sm text-muted-foreground">
           {COUNTRY_LABEL[project.country]} · vendido el {formatDate(project.saleDate)} · {project.fin.issuedInvoices} de {project.expectedInvoices} facturas emitidas
         </span>

@@ -7,6 +7,7 @@ vi.mock("@/server/auth", () => ({ requireSession: async () => ({ userId: "u1", e
 import { saveCollectionAction, saveInvoiceAction } from "@/server/actions/billing";
 import { saveCollaboratorAction } from "@/server/actions/collaborators";
 import { saveProjectAction } from "@/server/actions/projects";
+import { setProjectClosedAction } from "@/server/actions/projects";
 import { setProjectReviewAction } from "@/server/actions/settlements";
 import { revalidateMonthAction } from "@/server/actions/settings";
 import { getSettlementView, projectTable, salesSweep } from "@/server/queries/settlements";
@@ -105,5 +106,39 @@ suite("recaudos de proyectos vendidos antes del período", () => {
     expect(prior.map((l) => [l.projectCode, l.saleMonth, l.commissionCOP])).toEqual([["ENE-01", "2026-01", "1000000"]]);
     // y no figura en la tabla de proyectos vendidos en el período
     expect(await projectTable(view)).toEqual([]);
+  });
+});
+
+suite("proyectos cerrados", () => {
+  it("un proyecto cerrado sale de las listas de la liquidación pero sigue comisionando y se puede reabrir", async () => {
+    await clearFirestore();
+    await bootstrapBase({ email: "admin@haptica.co", name: "Admin", passwordHash: "x" });
+    await ref(C.users, "u1").set({ id: "u1", email: "t@t.co", name: "Tester", role: "ADMIN", passwordHash: "x", createdAt: "x", updatedAt: "x" });
+    const ana = id(await saveCollaboratorAction(null, { fullName: "Ana", email: "a@t.co", position: "Analista", status: "ACTIVE", policyId: "GENERAL", joinDate: "", notes: "" }));
+    const sale = (code: string) => saveProjectAction(null, { code, client: "Cliente SA", country: "CO", saleDate: "2026-05-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1]);
+    id(await sale("CERR-01")); // sin líneas
+    id(await sale("CERR-02")); // con recaudo en el período
+    const inv = id(await saveInvoiceAction(null, { projectId: "CERR-02", number: "FV1", status: "ISSUED", issueDate: "2026-06-01", dueDate: "", amountPreTax: "100000000", netBaseExplicit: "", notes: "" } as Parameters<typeof saveInvoiceAction>[1]));
+    id(await saveCollectionAction(null, { invoiceId: inv, date: "2026-07-10", amountReceived: "100000000", isOverpaymentAdjustment: false, notes: "" } as Parameters<typeof saveCollectionAction>[1]));
+    await runTx((tx) => validateMonth(tx, "2026-05", "u1", "2026-10-13"));
+    const codes = async () => {
+      const view = await getSettlementView(2026, "OCTOBER");
+      return { review: view.projects.map((p) => [p.projectCode, Boolean(p.closed)]), table: (await projectTable(view)).map((r) => r.projectCode), sweep: (await salesSweep(view)).flatMap((x) => x.rows.map((r) => r.projectCode)), gross: view.collaborators[0]?.gross };
+    };
+    expect(await codes()).toMatchObject({ review: [["CERR-01", false], ["CERR-02", false]], table: ["CERR-01", "CERR-02"], sweep: ["CERR-01", "CERR-02"], gross: "1000000" });
+
+    expect((await setProjectClosedAction({ id: "CERR-01", closed: true, note: "Proyecto terminado" })).ok).toBe(true);
+    expect((await setProjectClosedAction({ id: "CERR-02", closed: true })).ok).toBe(true);
+    // los cerrados salen de la tabla y del barrido; el que aún tiene líneas se sigue revisando (con etiqueta) y comisiona igual
+    expect(await codes()).toMatchObject({ review: [["CERR-02", true]], table: [], sweep: [], gross: "1000000" });
+    expect((await setProjectClosedAction({ id: "CERR-01", closed: true })).ok).toBe(false); // ya cerrado
+
+    // editar el proyecto no lo reabre
+    const edited = await saveProjectAction("CERR-01", { code: "CERR-01", client: "Otro cliente", country: "CO", saleDate: "2026-05-10", currency: "COP", saleAmount: "468000000", providerCosts: "0", expectedInvoices: "1", notes: "", assignments: [{ collaboratorId: ana, ratePercent: "1" }] } as Parameters<typeof saveProjectAction>[1], "motivo de prueba aqui");
+    void edited;
+    expect(((await ref(C.projects, "CERR-01").get()).data() as { closedAt: string | null }).closedAt).not.toBeNull();
+
+    expect((await setProjectClosedAction({ id: "CERR-01", closed: false })).ok).toBe(true);
+    expect((await codes()).table).toEqual(["CERR-01"]);
   });
 });

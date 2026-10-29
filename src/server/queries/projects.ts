@@ -33,6 +33,7 @@ export interface ProjectRow {
   expectedInvoices: number;
   notes: string | null;
   voided: boolean;
+  closed: boolean;
   voidReason: string | null;
   assignments: ProjectAssignmentRow[];
   eligibility: { status: EligibilityStatus; reason: string };
@@ -123,6 +124,7 @@ export function toProjectRow(p: ProjectDoc, w: World, facts: ReturnType<typeof c
     expectedInvoices: p.expectedInvoices,
     notes: p.notes,
     voided: Boolean(p.voidedAt),
+    closed: Boolean(p.closedAt),
     voidReason: p.voidReason,
     assignments: p.assignments
       .filter((a) => !a.removedAt)
