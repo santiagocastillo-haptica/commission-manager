@@ -49,7 +49,7 @@ export default async function InvoicesPage({ searchParams }: PageProps<"/factura
 
   const issued = allInvoices.filter((i) => i.status === "ISSUED");
   const planned = allInvoices.filter((i) => i.status === "PLANNED");
-  const pendingToIssue = projects.reduce((acc, p) => acc + p.fin.pendingInvoices, 0);
+  const pendingToIssue = projects.filter((p) => !p.closed).reduce((acc, p) => acc + p.fin.pendingInvoices, 0);
   const invoiced = byCurrency(issued.map((i) => ({ currency: i.currency, amount: i.amountPreTax })));
   const collected = byCurrency(issued.map((i) => ({ currency: i.currency, amount: i.collected })));
   const balance = byCurrency(issued.map((i) => ({ currency: i.currency, amount: i.balance })));

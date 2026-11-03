@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { todayBogota } from "@/domain/dates";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
@@ -80,7 +81,7 @@ suite("Fase D: validación de meses, liquidaciones y pagos en Firestore", () => 
     });
 
     it("la acción rechaza meses en curso", async () => {
-      const r = await validateMonthAction({ yearMonth: "2026-10" });
+      const r = await validateMonthAction({ yearMonth: todayBogota().slice(0, 7) }); // el mes en curso, sea cual sea hoy
       expect(r.ok).toBe(false);
     });
 

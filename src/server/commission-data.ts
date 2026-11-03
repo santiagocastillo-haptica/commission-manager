@@ -3,7 +3,7 @@ import type { DateOnly } from "@/domain/dates";
 import type { SettlementProject } from "@/domain/settlement";
 import { C, col, type AdjustmentDoc, type InvoiceDoc, type ProjectDoc, type Tx } from "@/store";
 
-export type LoadedProject = SettlementProject & { saleReferenceRate: string; saleDate: DateOnly; client: string };
+export type LoadedProject = SettlementProject & { saleReferenceRate: string; saleDate: DateOnly; client: string; closed?: boolean };
 
 /** Lector de consultas: con transacción (lecturas consistentes y bloqueadas) o sin ella. */
 export interface Reader {
@@ -42,6 +42,7 @@ export function buildCommissionProjects(
       saleReferenceRate: p.saleReferenceRate,
       saleDate: p.saleDate,
       saleMonth: p.saleMonth,
+      closed: Boolean(p.closedAt),
       voided: false,
       assignments: p.assignments.filter((a) => !a.removedAt).map((a) => ({ id: a.id, collaboratorId: a.collaboratorId, baseRate: a.baseRate, effectiveRate: a.effectiveRate, bonus: a.exception?.kind === "BONUS" })),
       invoices: (invByProject.get(p.id) ?? []).map((i) => ({

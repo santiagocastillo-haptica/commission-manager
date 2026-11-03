@@ -10,7 +10,8 @@ import { saveProjectAction } from "@/server/actions/projects";
 import { setProjectClosedAction } from "@/server/actions/projects";
 import { setProjectReviewAction } from "@/server/actions/settlements";
 import { revalidateMonthAction } from "@/server/actions/settings";
-import { getSettlementView, projectTable, salesSweep } from "@/server/queries/settlements";
+import { getReportData, getSettlementView, projectTable, salesSweep } from "@/server/queries/settlements";
+import { approveSettlement, calculateDraft } from "@/server/services/settlements";
 import { validateMonth } from "@/server/services/months";
 import { bootstrapBase } from "@/store/bootstrap";
 import { C, ref, runTx, type ProjectDoc } from "@/store";
@@ -140,5 +141,12 @@ suite("proyectos cerrados", () => {
 
     expect((await setProjectClosedAction({ id: "CERR-01", closed: false })).ok).toBe(true);
     expect((await codes()).table).toEqual(["CERR-01"]);
+
+    // en el reporte del colaborador, el proyecto cerrado no figura como pendiente; el abierto sí
+    await runTx((tx) => calculateDraft(tx, 2026, "OCTOBER", "u1"));
+    await approveSettlement("LIQ-2026-10", "u1", []);
+    const status = (await getReportData("LIQ-2026-10"))!.collaborators[0].snapshot.projects;
+    expect(status.find((p) => p.code === "CERR-02")).toMatchObject({ pendingInvoice: false, pendingCollection: false });
+    expect(status.find((p) => p.code === "CERR-01")).toMatchObject({ pendingInvoice: true });
   });
 });

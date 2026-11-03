@@ -68,9 +68,10 @@ export default async function DashboardPage({ searchParams }: PageProps<"/">) {
   const ratio = totalGoal.isZero() ? ZERO : sum(elapsed.map(monthSales)).div(totalGoal);
 
   const live = projects.filter((p) => !p.voided);
-  const toInvoice = live.filter((p) => p.fin.billingStatus !== "INVOICED");
+  const open = live.filter((p) => !p.closed); // los proyectos cerrados no tienen nada pendiente
+  const toInvoice = open.filter((p) => p.fin.billingStatus !== "INVOICED");
   const toInvoiceValue = sum(toInvoice.map((p) => D(p.fin.pendingToInvoice).mul(p.currency === "COP" ? 1 : p.saleReferenceRate)));
-  const projectIds = new Set(live.map((p) => p.id));
+  const projectIds = new Set(open.map((p) => p.id));
   const pendingInvoices = invoices.filter((i) => i.status === "ISSUED" && D(i.balance).gt(0) && projectIds.has(i.projectId));
   const pendingBalanceCOP = sum(pendingInvoices.filter((i) => i.currency === "COP").map((i) => i.balance));
   const foreignPending = pendingInvoices.filter((i) => i.currency !== "COP");

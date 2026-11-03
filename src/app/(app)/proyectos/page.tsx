@@ -40,8 +40,9 @@ export default async function ProjectsPage({ searchParams }: PageProps<"/proyect
 
   const live = projects.filter((p) => !p.voided);
   const totalSales = sum(live.map((p) => p.saleAmountCOP));
-  const pendingInvoice = live.filter((p) => p.fin.billingStatus !== "INVOICED").length;
-  const pendingCollect = live.filter((p) => p.fin.billingStatus !== "NOT_INVOICED" && p.fin.collectionStatus !== "COLLECTED").length;
+  const open = live.filter((p) => !p.closed);
+  const pendingInvoice = open.filter((p) => p.fin.billingStatus !== "INVOICED").length;
+  const pendingCollect = open.filter((p) => p.fin.billingStatus !== "NOT_INVOICED" && p.fin.collectionStatus !== "COLLECTED").length;
 
   return (
     <>

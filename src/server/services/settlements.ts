@@ -174,8 +174,9 @@ function projectStatusFor(p: LoadedProject, collaboratorId: string, lines: CalcL
   );
   const pendingPotential = Decimal.max(ZERO, (s.potentialCOP ?? ZERO).minus(s.generatedCOP));
   const approved = lines.filter((l) => l.projectId === p.id && l.collaboratorId === collaboratorId).reduce((acc, l) => acc.plus(l.commissionCOP), ZERO);
-  const pendingInvoice = fin.billingStatus !== "INVOICED";
-  const pendingCollection = fin.collectionStatus !== "COLLECTED";
+  // Un proyecto dado por cerrado no tiene nada pendiente: no aparece en las secciones de pendientes del reporte.
+  const pendingInvoice = !p.closed && fin.billingStatus !== "INVOICED";
+  const pendingCollection = !p.closed && fin.collectionStatus !== "COLLECTED";
   // Solo aparecen los proyectos con movimiento en esta liquidación o con algo pendiente.
   if (!pendingInvoice && !pendingCollection && approved.isZero()) return null;
   return {
