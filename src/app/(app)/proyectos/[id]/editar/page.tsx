@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { D } from "@/domain/money";
+import { decodeParam } from "@/lib/params";
 import { requireSession } from "@/server/auth";
 import { getProject, projectFormContext } from "@/server/queries/projects";
 import { ProjectForm } from "../../project-form";
@@ -10,10 +11,10 @@ export const metadata: Metadata = { title: "Editar proyecto" };
 
 export default async function EditProjectPage({ params }: PageProps<"/proyectos/[id]/editar">) {
   await requireSession();
-  const { id } = await params;
+  const id = decodeParam((await params).id);
   const project = await getProject(id);
   if (!project) notFound();
-  if (project.voided) redirect(`/proyectos/${id}`);
+  if (project.voided) redirect(`/proyectos/${encodeURIComponent(id)}`);
 
   const ctx = await projectFormContext({ saleMonth: project.saleMonth, saleAmountCOP: project.saleAmountCOP });
   const locked = ctx.months[project.saleMonth]?.status === "VALIDATED" ? project.saleMonth : undefined;

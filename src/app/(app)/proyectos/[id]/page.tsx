@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { COUNTRY_LABEL } from "@/domain/countries";
 import { formatDate } from "@/domain/dates";
 import { D, formatMoney, formatPercent, type CurrencyCode } from "@/domain/money";
+import { decodeParam } from "@/lib/params";
 import { requireSession } from "@/server/auth";
 import { listAdjustments, listInvoices, projectHistory } from "@/server/queries/billing";
 import { loadCommissionProjects, summarizeAssignments } from "@/server/queries/commissions";
@@ -35,7 +36,7 @@ const ACTION: Record<string, string> = { CREATE: "Creación", UPDATE: "Cambio", 
 
 export default async function ProjectDetailPage({ params }: PageProps<"/proyectos/[id]">) {
   await requireSession();
-  const { id } = await params;
+  const id = decodeParam((await params).id);
   const project = await getProject(id);
   if (!project) notFound();
 
